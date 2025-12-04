@@ -6,3 +6,5 @@ ipykernel
 scikit-learn
 rasterio
 rasterstats
+google-cloud-bigquery
+db-dtypes
