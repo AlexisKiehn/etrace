@@ -1,8 +1,11 @@
 numpy
 pandas
+scikit-learn
+matplotlib
+seaborn
 geopandas
+scipy
 ipdb
 ipykernel
-scikit-learn
 rasterio
 rasterstats
