@@ -1,5 +1,6 @@
 numpy
 pandas
+learnscikit-
 scikit-learn
 matplotlib
 seaborn
@@ -9,3 +10,5 @@ ipdb
 ipykernel
 rasterio
 rasterstats
+google-cloud-bigquery
+db-dtypes
