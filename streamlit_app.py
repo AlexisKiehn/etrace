@@ -61,6 +61,61 @@ This is the first version of our interactive website, where we will:
 This page is just a starting point — we will expand it into multiple tabs and visualizations.
 """)
 
+# ---------------------------------------------------------
+# Köppen-Geiger Climate Classification 101
+# ---------------------------------------------------------
+with st.expander("🌡️ What is the Köppen-Geiger Climate Classification?", expanded=False):
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        st.markdown("""
+        The **Köppen-Geiger climate classification** is one of the most widely used systems for
+        categorizing the world's climates. Developed by climatologist Wladimir Köppen in 1884
+        and later refined by Rudolf Geiger, it divides climates into five main groups based on
+        temperature and precipitation patterns.
+        """)
+
+        st.markdown("#### 🌍 Five Main Climate Groups")
+
+        st.markdown("""
+        🌴 **A - Tropical**
+        Hot and humid year-round with abundant rainfall
+
+        🏜️ **B - Dry**
+        Arid and semi-arid regions with low precipitation
+
+        🌤️ **C - Temperate**
+        Moderate temperatures with distinct seasons (like most of Europe)
+
+        ❄️ **D - Continental**
+        Cold winters and warm summers with significant seasonal variation
+
+        🧊 **E - Polar**
+        Extremely cold climates with little vegetation (tundra and ice caps)
+        """)
+
+        st.markdown("""
+        Each main group is further subdivided with additional letters indicating specific characteristics
+        like precipitation patterns (**f** = fully humid, **s** = dry summer, **w** = dry winter) and
+        temperature ranges (**a** = hot summer, **b** = warm summer, **c** = cool summer, etc.).
+        """)
+
+    with col2:
+        st.success("""
+        **🎯 Why it matters for E-TRACE**
+
+        Climate zones directly influence tourism patterns, seasonal demand, and visitor preferences.
+
+        Understanding how climate distributions change over time helps us:
+
+        - 📈 Predict shifts in regional tourism attractiveness
+        - 🏖️ Identify emerging seasonal patterns
+        - 🌡️ Track climate change impacts on tourism
+        - 🎿 Plan climate adaptation strategies
+        - 💡 Forecast future visitor preferences
+        """)
+
+
 st.divider()
 
 # ---------------------------------------------------------
