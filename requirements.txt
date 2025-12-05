@@ -12,3 +12,7 @@ rasterio
 rasterstats
 google-cloud-bigquery
 db-dtypes
+plotly
+pydeck
+streamlit
+geojson
