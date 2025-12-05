@@ -5,6 +5,8 @@ import plotly.express as px
 import pydeck as pdk
 import json
 import geojson
+from etrace.load_data import load_from_bq
+from google.cloud import storage
 
 # ---------------------------------------------------------
 # E-TRACE: European Tourism Regional Analysis & Climate Effects
@@ -66,27 +68,16 @@ st.divider()
 # ---------------------------------------------------------
 st.header("📁 Load Your Processed Dataset")
 
-uploaded_file = st.file_uploader(
-    "Upload the merged dataset (CSV/Parquet)",
-    type=["csv", "parquet"]
-)
+df = load_from_bq("SELECT * FROM `aklewagonproject.etrace.cleaned_final_dataset`")
 
-df = None
+st.session_state["df_clean"] = df
 
-if uploaded_file:
-    if uploaded_file.name.endswith(".csv"):
-        df = pd.read_csv(uploaded_file)
-    else:
-        df = pd.read_parquet(uploaded_file)
+st.success("Dataset loaded successfully!")
+st.write("### Preview of the data:")
+st.dataframe(df.head())
 
-    st.session_state["df_clean"] = df
-
-    st.success("Dataset loaded successfully!")
-    st.write("### Preview of the data:")
-    st.dataframe(df.head())
-
-    st.write("### Dataset statistics:")
-    st.write(df.describe(include="all"))
+st.write("### Dataset statistics:")
+st.write(df.describe(include="all"))
 
 
 # ---------------------------------------------------------
@@ -202,12 +193,16 @@ elif page == "Mapping":
     df_clean = st.session_state.get("df_clean")
 
     if df_clean is None:
-        st.warning("Please upload your dataset first on the Home page.")
+        st.warning("Something went wrong uploading the data.")
         st.stop()
 
     # Load NUTS2 GeoJSON
-    with open("raw_data/nuts2_geo.geojson", "r") as f:
-        nuts2_geo = geojson.load(f)
+    client = storage.Client()
+    bucket = client.bucket("etrace-data")
+    blob = bucket.blob("data/raw_data/nuts2_geo.geojson")
+
+    geojson_bytes = blob.download_as_bytes()
+    nuts2_geo = json.loads(geojson_bytes.decode("utf-8"))
 
     # Ensure 'geo' column exists
     if "geo" not in df_clean.columns:
