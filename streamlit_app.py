@@ -46,10 +46,21 @@ st.set_page_config(
 # ---------------------------------------------------------
 # Header
 # ---------------------------------------------------------
-st.title("🌍 E-TRACE Dashboard")
+st.markdown("<h1 style='text-align: center; font-size: 4rem;'>🌍 E-TRACE Dashboard</h1>", unsafe_allow_html=True)
 st.markdown("""
-Welcome to **E-TRACE** — European Tourism Regional Analysis & Climate Effects.
-
+    <p style='text-align: center; font-size: 1.2rem;'>
+    Welcome to <span style='color: #1f77b4; font-weight: bold;'>E</span>-TRACE —
+    <span style='color: #1f77b4; font-weight: bold;'>E</span>uropean
+    <span style='color: #1f77b4; font-weight: bold;'>T</span>ourism
+    <span style='color: #1f77b4; font-weight: bold;'>R</span>egional
+    <span style='color: #1f77b4; font-weight: bold;'>A</span>nalysis &
+    <span style='color: #1f77b4; font-weight: bold;'>C</span>limate
+    <span style='color: #1f77b4; font-weight: bold;'>E</span>ffects.
+    </p>
+    """,
+    unsafe_allow_html=True
+)
+st.markdown("""
 This is the first version of our interactive website, where we will:
 - Upload and explore the dataset
 - Visualize trends (tourism activity, population, GDP, employment, climate variables…)
@@ -62,8 +73,66 @@ This page is just a starting point — we will expand it into multiple tabs and 
 st.divider()
 
 # ---------------------------------------------------------
+# Köppen-Geiger Climate Classification 101
+# ---------------------------------------------------------
+with st.expander("🌡️ What is the Köppen-Geiger Climate Classification?", expanded=False):
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        st.markdown("""
+        The **Köppen-Geiger climate classification** is one of the most widely used systems for
+        categorizing the world's climates. Developed by climatologist Wladimir Köppen in 1884
+        and later refined by Rudolf Geiger, it divides climates into five main groups based on
+        temperature and precipitation patterns.
+        """)
+
+        st.markdown("#### 🌍 Five Main Climate Groups")
+
+        st.markdown("""
+        🌴 **A - Tropical**
+        Hot and humid year-round with abundant rainfall
+
+        🏜️ **B - Dry**
+        Arid and semi-arid regions with low precipitation
+
+        🌤️ **C - Temperate**
+        Moderate temperatures with distinct seasons (like most of Europe)
+
+        ❄️ **D - Continental**
+        Cold winters and warm summers with significant seasonal variation
+
+        🧊 **E - Polar**
+        Extremely cold climates with little vegetation (tundra and ice caps)
+        """)
+
+        st.markdown("""
+        Each main group is further subdivided with additional letters indicating specific characteristics
+        like precipitation patterns (**f** = fully humid, **s** = dry summer, **w** = dry winter) and
+        temperature ranges (**a** = hot summer, **b** = warm summer, **c** = cool summer, etc.).
+        """)
+
+    with col2:
+        st.success("""
+        **🎯 Why it matters for E-TRACE**
+
+        Climate zones directly influence tourism patterns, seasonal demand, and visitor preferences.
+
+        Understanding how climate distributions change over time helps us:
+
+        - 📈 Predict shifts in regional tourism attractiveness
+        - 🏖️ Identify emerging seasonal patterns
+        - 🌡️ Track climate change impacts on tourism
+        - 🎿 Plan climate adaptation strategies
+        - 💡 Forecast future visitor preferences
+        """)
+
+
+st.divider()
+
+# ---------------------------------------------------------
 # Dataset Loader Section
 # ---------------------------------------------------------
+
 st.header("📁 Load Your Processed Dataset")
 
 uploaded_file = st.file_uploader(
@@ -92,6 +161,7 @@ if uploaded_file:
 # ---------------------------------------------------------
 # Sidebar Navigation (for future pages)
 # ---------------------------------------------------------
+
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to:", ["Home", "Exploration", "Mapping", "Models"])
 
