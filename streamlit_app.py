@@ -367,7 +367,23 @@ elif page == "Mapping":
         else:
             feature["properties"]["color"] = [180, 180, 180]   # grey fallback
 
-    st.write(df_year)
+
+    def highlight_selected_column(df, column_name):
+        """
+        Resalta la columna seleccionada con un color especial
+        """
+        styles = pd.DataFrame('', index=df.index, columns=df.columns)
+        if column_name in df.columns:
+            styles[column_name] = 'background-color: #FFD700; color: black; font-weight: bold'
+        return styles
+
+    # Mostrar la tabla con la columna resaltada
+    st.write("### Data Preview")
+    st.dataframe(
+        df_year.style.apply(highlight_selected_column, column_name=selected_var, axis=None),
+        use_container_width=True,
+        height=400
+    )
     st.write(df_year.shape)
 
     # PyDeck layer
