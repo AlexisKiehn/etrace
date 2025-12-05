@@ -121,7 +121,7 @@ st.divider()
 # ---------------------------------------------------------
 # Dataset Loader Section
 # ---------------------------------------------------------
-st.header("📁 Load Your Processed Dataset")
+st.header("📁💻 Loading E-Trace Processed Dataset...")
 
 df = load_from_bq("SELECT * FROM `aklewagonproject.etrace.cleaned_final_jaume_dataset`")
 
