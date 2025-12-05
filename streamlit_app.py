@@ -206,7 +206,7 @@ elif page == "Mapping":
         st.stop()
 
     # Load NUTS2 GeoJSON
-    with open("nuts2_data/nuts2_geo.geojson", "r") as f:
+    with open("raw_data/nuts2_geo.geojson", "r") as f:
         nuts2_geo = geojson.load(f)
 
     # Ensure 'geo' column exists
