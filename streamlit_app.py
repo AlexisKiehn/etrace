@@ -45,10 +45,16 @@ st.set_page_config(
     layout="wide"
 )
 
+st.markdown("""
+    <h1 style='text-align: center; font-size: 4rem;'>
+        🌍 <span style='color: #1f77b4;'>E</span>-TRACE Dashboard
+    </h1>
+""", unsafe_allow_html=True)
+
 # ---------------------------------------------------------
 # Header
 # ---------------------------------------------------------
-st.markdown("<h1 style='text-align: center; font-size: 4rem;'>🌍 E-TRACE Dashboard</h1>", unsafe_allow_html=True)
+
 st.markdown("""
     <p style='text-align: center; font-size: 1.2rem;'>
     Welcome to <span style='color: #1f77b4; font-weight: bold;'>E</span>-TRACE —
@@ -377,7 +383,7 @@ elif page == "Mapping":
             styles[column_name] = 'background-color: #FFD700; color: black; font-weight: bold'
         return styles
 
-    # Mostrar la tabla con la columna resaltada
+    #highlight col
     st.write("### Data Preview")
     st.dataframe(
         df_year.style.apply(highlight_selected_column, column_name=selected_var, axis=None),
@@ -385,6 +391,33 @@ elif page == "Mapping":
         height=400
     )
     st.write(df_year.shape)
+
+    st.markdown("### 📊 Color Legend")
+
+    # statistics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Mínimo", f"{vmin:.2f}")
+    with col2:
+        st.metric("Media", f"{df_year[selected_var].mean():.2f}")
+    with col3:
+        st.metric("Máximo", f"{vmax:.2f}")
+
+    # visual grad ( nabla)
+    st.markdown(f"""
+    <div style="background: linear-gradient(to right,
+        rgb(48,18,59), rgb(37,66,167), rgb(16,120,130),
+        rgb(68,164,54), rgb(160,194,9), rgb(255,209,28),
+        rgb(255,158,73), rgb(255,64,112), rgb(203,0,122));
+        height: 30px; border-radius: 5px; margin: 10px 0;">
+    </div>
+    <div style="display: flex; justify-content: space-between;">
+        <span>{vmin:.2f}</span>
+        <span style="font-weight: bold;">{selected_var}</span>
+        <span>{vmax:.2f}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
 
     # PyDeck layer
     layer = pdk.Layer(
