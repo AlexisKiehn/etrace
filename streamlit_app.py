@@ -408,7 +408,57 @@ elif page == "Mapping":
 
 elif page == "Models":
     st.header("🤖 Predictive Models")
-    st.write("Coming soon: model training, forecasting, climate-tourism interactions…")
+
+    st.write("Use the model to forecast tourism indicators based on climate and economic variables.")
+
+    # -----------------------
+    # User Inputs
+    # -----------------------
+    col1, col2 = st.columns(2)
+
+    with col1:
+        year = st.number_input("Year to predict:", min_value=2025, max_value=2100, value=2030)
+        avg_temp = st.number_input("Avg Temperature (°C):", value=18.0)
+        precip = st.number_input("Precipitation (mm):", value=50.0)
+
+    with col2:
+        gdp = st.number_input("GDP per capita (€):", value=30000)
+        population = st.number_input("Population:", value=1_000_000)
+        employment_rate = st.number_input("Employment rate (%):", value=70.0)
+
+    st.divider()
+
+    # -----------------------
+    # Prediction Request
+    # -----------------------
+    if st.button("🔮 Predict Tourism Demand"):
+        st.info("Sending request to prediction API...")
+
+        api_url = st.secrets["PREDICTION_API_URL"]  # you will add this later in Streamlit secrets
+
+        payload = {
+            "year": year,
+            "temperature": avg_temp,
+            "precipitation": precip,
+            "gdp": gdp,
+            "population": population,
+            "employment_rate": employment_rate,
+        }
+
+        try:
+            response = requests.post(api_url, json=payload, timeout=20)
+
+            if response.status_code == 200:
+                result = response.json()
+                st.success("Prediction completed!")
+                st.metric("📊 Predicted Nights Spent:", f"{result['prediction']:,.0f}")
+
+            else:
+                st.error(f"API error {response.status_code}: {response.text}")
+
+        except Exception as e:
+            st.error(f"Error connecting to prediction API: {e}")
+
 
 
 # ---------------------------------------------------------
