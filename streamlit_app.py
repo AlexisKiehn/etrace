@@ -441,11 +441,11 @@ elif page == "Mapping":
     # statistics
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Mínimo", f"{vmin:.2f}")
+        st.metric("Min value", f"{vmin:.2f}")
     with col2:
-        st.metric("Media", f"{df_year[selected_var].mean():.2f}")
+        st.metric("Average value", f"{df_year[selected_var].mean():.2f}")
     with col3:
-        st.metric("Máximo", f"{vmax:.2f}")
+        st.metric("Max value", f"{vmax:.2f}")
 
     # visual grad ( nabla)
     st.markdown(f"""
