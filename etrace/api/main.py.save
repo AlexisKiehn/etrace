@@ -1,0 +1,24 @@
+    # Climate columns (dynamic set)
+    pct_BSh: float | None = None
+    pct_BWh: float | None = None
+    pct_Dfb: float | None = None
+    pct_Am: float | None = None
+    pct_Aw: float | None = None
+    pct_Cfb: float | None = None
+    pct_Cfa: float | None = None
+    pct_Dfc: float | None = None
+    pct_ET: float | None = None
+    pct_Dfa: float | None = None
+    pct_Csa: float | None = None
+    pct_Csb: float | None = None
+    pct_BSk: float | None = None
+    pct_Dsb: float | None = None
+    pct_Dsc: float | None = None
+    pct_Dwc: float | None = None
+    pct_Dwa: float | None = None
+    pct_Cwa: float | None = None
+    pct_Cwb: float | None = None
+    pct_BWk: float | None = None
+    pct_Af: float | None = None
+    pct_Dwd: float | None = None
+    pct_Dsd: float | None = None

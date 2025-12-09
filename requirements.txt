@@ -1,25 +1,7 @@
+fastapi
+uvicorn[standard]
+joblib
+xgboost
 numpy
 pandas
-<<<<<<< HEAD
-geopandas
-ipdb
-ipykernel
 scikit-learn
-=======
-scikit-learn
-matplotlib
-seaborn
-geopandas
-scipy
-ipdb
-ipykernel
-rasterio
-rasterstats
-google-cloud-bigquery
-db-dtypes
-google-cloud-storage
-plotly
-pydeck
-streamlit
-geojson
->>>>>>> 5604f827b1ea6ab2e434ecd41aea41bcd6951957

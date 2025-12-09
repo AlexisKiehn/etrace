@@ -1,0 +1,16 @@
+streamlit
+pandas
+numpy
+matplotlib
+seaborn
+scikit-learn
+xgboost
+joblib
+
+# Geo libraries (solo para LOCAL, NO Cloud Run)
+geopandas
+shapely
+fiona
+pyproj
+rasterio
+
