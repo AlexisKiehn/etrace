@@ -38,6 +38,48 @@ koppen_labels = {
     "EF": "Ice cap"
 }
 
+SSP_SCENARIOS = {
+    "SSP1 – Sustainability (Taking the Green Road)": {
+        "description": "Low emissions, strong environmental policies, shifting towards greener climates",
+        "ssp_code": 1,
+        "co2": "low",
+        "econ_growth": "high"
+    },
+    "SSP2 – Middle of the Road": {
+        "description": "Most likely scenario: moderate emissions, moderate warming",
+        "ssp_code": 2,
+        "co2": "medium",
+        "econ_growth": "medium"
+    },
+    "SSP3 – Regional Rivalry (A Rocky Road)": {
+        "description": "High barriers, slow economic development, climate stress",
+        "ssp_code": 3,
+        "co2": "high",
+        "econ_growth": "low"
+    },
+    "SSP4 – Inequality (A Road Divided)": {
+        "description": "High inequality, limited global cooperation",
+        "ssp_code": 4,
+        "co2": "high",
+        "econ_growth": "imbalanced"
+    },
+    "SSP5 – Fossil-Fueled Development (Taking the Highway)": {
+        "description": "High emissions, strong economic growth, strong warming",
+        "ssp_code": 5,
+        "co2": "very_high",
+        "econ_growth": "very_high"
+    },
+    "SSP1-2.6 (Low Warming Pathway)": {
+        "description": "Low radiative forcing (2.6 W/m2), strong mitigation",
+        "rf": 2.6
+    },
+    "SSP3-7.0 (High Warming Pathway)": {
+        "description": "High radiative forcing (7.0 W/m2), minimal mitigation",
+        "rf": 7.0
+    }
+}
+
+
 # Page configuration
 st.set_page_config(
     page_title="E-TRACE Dashboard",
@@ -68,15 +110,6 @@ st.markdown("""
     """,
     unsafe_allow_html=True
 )
-st.markdown("""
-This is the first version of our interactive website, where we will:
-- Upload and explore the dataset
-- Visualize trends (tourism activity, population, GDP, employment, climate variables…)
-- Build predictive insights
-- Interactively compare NUTS-2 regions
-
-This page is just a starting point — we will expand it into multiple tabs and visualizations.
-""")
 
 # ---------------------------------------------------------
 # Köppen-Geiger Climate Classification 101
@@ -136,21 +169,12 @@ with st.expander("🌡️ What is the Köppen-Geiger Climate Classification?", e
 st.divider()
 
 # ---------------------------------------------------------
-# Dataset Loader Section
+# Dataset Api Call to Load Data
 # ---------------------------------------------------------
-st.header("📁💻 Loading E-Trace Processed Dataset...")
 
 df = load_from_bq("SELECT * FROM `aklewagonproject.etrace.cleaned_final_jaume_dataset`")
 
-st.session_state["df_clean"] = df
-
-st.success("Dataset loaded successfully!")
-st.write("### Preview of the data:")
-st.dataframe(df.head())
-
-st.write("### Dataset statistics:")
-st.write(df.describe(include="all"))
-
+st.session_state["df"] = df
 
 # ---------------------------------------------------------
 # Sidebar Navigation (for future pages)
@@ -159,7 +183,27 @@ st.write(df.describe(include="all"))
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to:", ["Home", "Exploration", "Mapping", "Models"])
 
-if page == "Exploration":
+if page == 'Home':
+
+    st.header("🏠 Home")
+    st.markdown("""
+    Welcome to the E-TRACE Dashboard! Use the sidebar to navigate between different sections:
+    - **Exploration**: Dive into regional data and visualize time-series indicators.
+    - **Mapping**: Explore interactive maps of NUTS-2 regions with various socioeconomic and climate variables.
+    - **Models**: Experiment with predictive models based on future climate and socioeconomic scenarios.
+
+    Get started by selecting a page from the sidebar!
+    """)
+
+    st.header("📁💻 Loading E-Trace Processed Dataset...")
+    st.success("Dataset loaded successfully!")
+    st.write("### Preview of the data:")
+    st.dataframe(df.head())
+
+    st.write("### Dataset statistics:")
+    st.write(df.describe(include="all"))
+
+elif page == "Exploration":
 
     st.header("🔎 Region Explorer")
     st.markdown("Select a NUTS-2 region to explore its time-series indicators.")
@@ -170,10 +214,10 @@ if page == "Exploration":
         # ------------------------
         # Region Selector
         # ------------------------
-        regions = sorted(df["geo"].dropna().unique())
+        regions = sorted(df["NUTS_NAME"].dropna().unique())
         region = st.selectbox("Select a NUTS-2 region:", regions)
 
-        df_region = df[df["geo"] == region].sort_values("year")
+        df_region = df[df["NUTS_NAME"] == region].sort_values("year")
 
         st.subheader(f"📍 Region: **{region}**")
         st.write(df_region)
@@ -263,7 +307,7 @@ elif page == "Mapping":
     st.header("🗺️ NUTS-2 Regional Map Visualization")
 
     # Load your merged dataset
-    df_clean = st.session_state.get("df_clean")
+    df_clean = st.session_state.get("df")
 
     if df_clean is None:
         st.warning("Something went wrong uploading the data.")
@@ -456,8 +500,48 @@ elif page == "Mapping":
     )
 
 elif page == "Models":
+
+    df_clean = st.session_state.get("df")
+
     st.header("🤖 Predictive Models")
-    st.write("Coming soon: model training, forecasting, climate-tourism interactions…")
+    st.write("Select a future climate–socioeconomic pathway (SSP), "
+             "and we will generate a tourism forecast once the model is deployed.")
+
+    # --- SSP scenario dropdown ---
+    scenario = st.selectbox(
+        "Choose a Shared Socioeconomic Pathway (SSP):",
+        list(SSP_SCENARIOS.keys())
+    )
+
+    st.info(SSP_SCENARIOS[scenario]["description"])
+
+    # Optional: user selects target region
+    nuts_choice = st.selectbox(
+        "Select NUTS-2 region:",
+        sorted(df_clean["NUTS_NAME"].unique())
+    )
+
+    # Optional: year selection for future prediction
+    year_choice = st.slider("Forecast year:", 2025, 2075, 2035)
+
+    # Build the API input payload
+    inference_payload = {
+        "region": nuts_choice,
+        "target_year": year_choice,
+        "scenario": scenario,
+        "scenario_features": SSP_SCENARIOS[scenario]
+    }
+
+    st.subheader("📦 Prediction Payload Preview")
+    st.json(inference_payload)
+
+    # --- Predict button (API call will go here later) ---
+    if st.button("🚀 Run Prediction (coming soon)"):
+        st.warning("Model not deployed yet — API call placeholder active.")
+        # This is where you'll insert:
+        # response = requests.post(MODEL_URL, json=inference_payload)
+        # st.success(f"Predicted value: {response.json()['prediction']}")
+
 
 
 # ---------------------------------------------------------

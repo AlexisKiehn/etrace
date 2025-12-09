@@ -16,3 +16,6 @@ plotly
 pydeck
 streamlit
 geojson
+fastapi
+uvicorn
+joblib
