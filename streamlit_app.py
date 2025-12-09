@@ -5,6 +5,8 @@ import plotly.express as px
 import pydeck as pdk
 import json
 import geojson
+from etrace.load_data import load_from_bq, load_from_bucket
+from google.cloud import storage
 
 # ---------------------------------------------------------
 # E-TRACE: European Tourism Regional Analysis & Climate Effects
@@ -36,6 +38,48 @@ koppen_labels = {
     "EF": "Ice cap"
 }
 
+SSP_SCENARIOS = {
+    "SSP1 – Sustainability (Taking the Green Road)": {
+        "description": "Low emissions, strong environmental policies, shifting towards greener climates",
+        "ssp_code": 1,
+        "co2": "low",
+        "econ_growth": "high"
+    },
+    "SSP2 – Middle of the Road": {
+        "description": "Most likely scenario: moderate emissions, moderate warming",
+        "ssp_code": 2,
+        "co2": "medium",
+        "econ_growth": "medium"
+    },
+    "SSP3 – Regional Rivalry (A Rocky Road)": {
+        "description": "High barriers, slow economic development, climate stress",
+        "ssp_code": 3,
+        "co2": "high",
+        "econ_growth": "low"
+    },
+    "SSP4 – Inequality (A Road Divided)": {
+        "description": "High inequality, limited global cooperation",
+        "ssp_code": 4,
+        "co2": "high",
+        "econ_growth": "imbalanced"
+    },
+    "SSP5 – Fossil-Fueled Development (Taking the Highway)": {
+        "description": "High emissions, strong economic growth, strong warming",
+        "ssp_code": 5,
+        "co2": "very_high",
+        "econ_growth": "very_high"
+    },
+    "SSP1-2.6 (Low Warming Pathway)": {
+        "description": "Low radiative forcing (2.6 W/m2), strong mitigation",
+        "rf": 2.6
+    },
+    "SSP3-7.0 (High Warming Pathway)": {
+        "description": "High radiative forcing (7.0 W/m2), minimal mitigation",
+        "rf": 7.0
+    }
+}
+
+
 # Page configuration
 st.set_page_config(
     page_title="E-TRACE Dashboard",
@@ -43,44 +87,115 @@ st.set_page_config(
     layout="wide"
 )
 
+st.markdown("""
+    <h1 style='text-align: center; font-size: 4rem;'>
+        🌍 <span style='color: #1f77b4;'>E</span>-TRACE Dashboard
+    </h1>
+""", unsafe_allow_html=True)
+
 # ---------------------------------------------------------
 # Header
 # ---------------------------------------------------------
-st.title("🌍 E-TRACE Dashboard")
+
 st.markdown("""
-Welcome to **E-TRACE** — European Tourism Regional Analysis & Climate Effects.
+    <p style='text-align: center; font-size: 1.2rem;'>
+    Welcome to <span style='color: #1f77b4; font-weight: bold;'>E</span>-TRACE —
+    <span style='color: #1f77b4; font-weight: bold;'>E</span>uropean
+    <span style='color: #1f77b4; font-weight: bold;'>T</span>ourism
+    <span style='color: #1f77b4; font-weight: bold;'>R</span>egional
+    <span style='color: #1f77b4; font-weight: bold;'>A</span>nalysis &
+    <span style='color: #1f77b4; font-weight: bold;'>C</span>limate
+    <span style='color: #1f77b4; font-weight: bold;'>E</span>ffects.
+    </p>
+    """,
+    unsafe_allow_html=True
+)
 
-This is the first version of our interactive website, where we will:
-- Upload and explore the dataset
-- Visualize trends (tourism activity, population, GDP, employment, climate variables…)
-- Build predictive insights
-- Interactively compare NUTS-2 regions
+# ---------------------------------------------------------
+# Köppen-Geiger Climate Classification 101
+# ---------------------------------------------------------
+with st.expander("🌡️ What is the Köppen-Geiger Climate Classification?", expanded=False):
+    col1, col2 = st.columns([2, 1])
 
-This page is just a starting point — we will expand it into multiple tabs and visualizations.
-""")
+    with col1:
+        st.markdown("""
+        The **Köppen-Geiger climate classification** is one of the most widely used systems for
+        categorizing the world's climates. Developed by climatologist Wladimir Köppen in 1884
+        and later refined by Rudolf Geiger, it divides climates into five main groups based on
+        temperature and precipitation patterns.
+        """)
+
+        st.markdown("#### 🌍 Five Main Climate Groups")
+
+        st.markdown("""
+        🌴 **A - Tropical**
+        Hot and humid year-round with abundant rainfall
+
+        🏜️ **B - Dry**
+        Arid and semi-arid regions with low precipitation
+
+        🌤️ **C - Temperate**
+        Moderate temperatures with distinct seasons (like most of Europe)
+
+        ❄️ **D - Continental**
+        Cold winters and warm summers with significant seasonal variation
+
+        🧊 **E - Polar**
+        Extremely cold climates with little vegetation (tundra and ice caps)
+        """)
+
+        st.markdown("""
+        Each main group is further subdivided with additional letters indicating specific characteristics
+        like precipitation patterns (**f** = fully humid, **s** = dry summer, **w** = dry winter) and
+        temperature ranges (**a** = hot summer, **b** = warm summer, **c** = cool summer, etc.).
+        """)
+
+    with col2:
+        st.success("""
+        **🎯 Why it matters for E-TRACE**
+
+        Climate zones directly influence tourism patterns, seasonal demand, and visitor preferences.
+
+        Understanding how climate distributions change over time helps us:
+
+        - 📈 Predict shifts in regional tourism attractiveness
+        - 🏖️ Identify emerging seasonal patterns
+        - 🌡️ Track climate change impacts on tourism
+        - 🎿 Plan climate adaptation strategies
+        - 💡 Forecast future visitor preferences
+        """)
+
 
 st.divider()
 
 # ---------------------------------------------------------
-# Dataset Loader Section
+# Dataset Api Call to Load Data
 # ---------------------------------------------------------
-st.header("📁 Load Your Processed Dataset")
 
-uploaded_file = st.file_uploader(
-    "Upload the merged dataset (CSV/Parquet)",
-    type=["csv", "parquet"]
-)
+df = load_from_bq("SELECT * FROM `aklewagonproject.etrace.cleaned_final_jaume_dataset`")
 
-df = None
+st.session_state["df"] = df
 
-if uploaded_file:
-    if uploaded_file.name.endswith(".csv"):
-        df = pd.read_csv(uploaded_file)
-    else:
-        df = pd.read_parquet(uploaded_file)
+# ---------------------------------------------------------
+# Sidebar Navigation (for future pages)
+# ---------------------------------------------------------
 
-    st.session_state["df_clean"] = df
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to:", ["Home", "Exploration", "Mapping", "Models"])
 
+if page == 'Home':
+
+    st.header("🏠 Home")
+    st.markdown("""
+    Welcome to the E-TRACE Dashboard! Use the sidebar to navigate between different sections:
+    - **Exploration**: Dive into regional data and visualize time-series indicators.
+    - **Mapping**: Explore interactive maps of NUTS-2 regions with various socioeconomic and climate variables.
+    - **Models**: Experiment with predictive models based on future climate and socioeconomic scenarios.
+
+    Get started by selecting a page from the sidebar!
+    """)
+
+    st.header("📁💻 Loading E-Trace Processed Dataset...")
     st.success("Dataset loaded successfully!")
     st.write("### Preview of the data:")
     st.dataframe(df.head())
@@ -88,14 +203,7 @@ if uploaded_file:
     st.write("### Dataset statistics:")
     st.write(df.describe(include="all"))
 
-
-# ---------------------------------------------------------
-# Sidebar Navigation (for future pages)
-# ---------------------------------------------------------
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to:", ["Home", "Exploration", "Mapping", "Models"])
-
-if page == "Exploration":
+elif page == "Exploration":
 
     st.header("🔎 Region Explorer")
     st.markdown("Select a NUTS-2 region to explore its time-series indicators.")
@@ -106,10 +214,10 @@ if page == "Exploration":
         # ------------------------
         # Region Selector
         # ------------------------
-        regions = sorted(df["geo"].dropna().unique())
+        regions = sorted(df["NUTS_NAME"].dropna().unique())
         region = st.selectbox("Select a NUTS-2 region:", regions)
 
-        df_region = df[df["geo"] == region].sort_values("year")
+        df_region = df[df["NUTS_NAME"] == region].sort_values("year")
 
         st.subheader(f"📍 Region: **{region}**")
         st.write(df_region)
@@ -199,15 +307,19 @@ elif page == "Mapping":
     st.header("🗺️ NUTS-2 Regional Map Visualization")
 
     # Load your merged dataset
-    df_clean = st.session_state.get("df_clean")
+    df_clean = st.session_state.get("df")
 
     if df_clean is None:
-        st.warning("Please upload your dataset first on the Home page.")
+        st.warning("Something went wrong uploading the data.")
         st.stop()
 
-    # Load NUTS2 GeoJSON
-    with open("raw_data/nuts2_geo.geojson", "r") as f:
-        nuts2_geo = geojson.load(f)
+    # Load NUTS2 GeoJSON from google cloud
+    client = storage.Client()
+    bucket = client.bucket("etrace-data")
+    blob = bucket.blob("data/raw_data/nuts2_geo.geojson")
+
+    geojson_bytes = blob.download_as_bytes()
+    nuts2_geo = geojson.loads(geojson_bytes.decode("utf-8"))
 
     # Ensure 'geo' column exists
     if "geo" not in df_clean.columns:
@@ -227,7 +339,6 @@ elif page == "Mapping":
     selected_year = st.slider("Select Year", min(years), max(years), min(years))
 
     df_year = df_clean[df_clean["year"] == selected_year]
-
 
     all_geo2= []
     for each in nuts2_geo["features"]:
@@ -306,8 +417,51 @@ elif page == "Mapping":
         else:
             feature["properties"]["color"] = [180, 180, 180]   # grey fallback
 
-    st.write(df_year)
+
+    def highlight_selected_column(df, column_name):
+        """
+        Resalta la columna seleccionada con un color especial
+        """
+        styles = pd.DataFrame('', index=df.index, columns=df.columns)
+        if column_name in df.columns:
+            styles[column_name] = 'background-color: #FFD700; color: black; font-weight: bold'
+        return styles
+
+    #highlight col
+    st.write("### Data Preview")
+    st.dataframe(
+        df_year.style.apply(highlight_selected_column, column_name=selected_var, axis=None),
+        use_container_width=True,
+        height=400
+    )
     st.write(df_year.shape)
+
+    st.markdown("### 📊 Color Legend")
+
+    # statistics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Mínimo", f"{vmin:.2f}")
+    with col2:
+        st.metric("Media", f"{df_year[selected_var].mean():.2f}")
+    with col3:
+        st.metric("Máximo", f"{vmax:.2f}")
+
+    # visual grad ( nabla)
+    st.markdown(f"""
+    <div style="background: linear-gradient(to right,
+        rgb(48,18,59), rgb(37,66,167), rgb(16,120,130),
+        rgb(68,164,54), rgb(160,194,9), rgb(255,209,28),
+        rgb(255,158,73), rgb(255,64,112), rgb(203,0,122));
+        height: 30px; border-radius: 5px; margin: 10px 0;">
+    </div>
+    <div style="display: flex; justify-content: space-between;">
+        <span>{vmin:.2f}</span>
+        <span style="font-weight: bold;">{selected_var}</span>
+        <span>{vmax:.2f}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
 
     # PyDeck layer
     layer = pdk.Layer(
@@ -346,8 +500,48 @@ elif page == "Mapping":
     )
 
 elif page == "Models":
+
+    df_clean = st.session_state.get("df")
+
     st.header("🤖 Predictive Models")
-    st.write("Coming soon: model training, forecasting, climate-tourism interactions…")
+    st.write("Select a future climate–socioeconomic pathway (SSP), "
+             "and we will generate a tourism forecast once the model is deployed.")
+
+    # --- SSP scenario dropdown ---
+    scenario = st.selectbox(
+        "Choose a Shared Socioeconomic Pathway (SSP):",
+        list(SSP_SCENARIOS.keys())
+    )
+
+    st.info(SSP_SCENARIOS[scenario]["description"])
+
+    # Optional: user selects target region
+    nuts_choice = st.selectbox(
+        "Select NUTS-2 region:",
+        sorted(df_clean["NUTS_NAME"].unique())
+    )
+
+    # Optional: year selection for future prediction
+    year_choice = st.slider("Forecast year:", 2025, 2075, 2035)
+
+    # Build the API input payload
+    inference_payload = {
+        "region": nuts_choice,
+        "target_year": year_choice,
+        "scenario": scenario,
+        "scenario_features": SSP_SCENARIOS[scenario]
+    }
+
+    st.subheader("📦 Prediction Payload Preview")
+    st.json(inference_payload)
+
+    # --- Predict button (API call will go here later) ---
+    if st.button("🚀 Run Prediction (coming soon)"):
+        st.warning("Model not deployed yet — API call placeholder active.")
+        # This is where you'll insert:
+        # response = requests.post(MODEL_URL, json=inference_payload)
+        # st.success(f"Predicted value: {response.json()['prediction']}")
+
 
 
 # ---------------------------------------------------------

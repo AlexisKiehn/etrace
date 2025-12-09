@@ -24,6 +24,8 @@ def load_from_bucket(
         f"File {source_blob_name} downloaded to {destination_file_name} from bucket {bucket_name}."
     )
 
+    return destination_file_name
+
 
 if __name__ == "__main__":
 
