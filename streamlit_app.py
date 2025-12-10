@@ -7,6 +7,7 @@ import json
 import geojson
 from etrace.load_data import load_from_bq, load_from_bucket
 from google.cloud import storage
+from shapely.geometry import shape
 
 # ---------------------------------------------------------
 # E-TRACE: European Tourism Regional Analysis & Climate Effects
@@ -340,6 +341,13 @@ elif page == "Mapping":
 
     df_year = df_clean[df_clean["year"] == selected_year]
 
+    # 3D stacked map style
+    map_style_choice = st.radio(
+        "Map Style",
+        ["Flat Map", "3D Stacked Map"],
+        horizontal=True
+    )
+
     all_geo2= []
     for each in nuts2_geo["features"]:
         if each.properties["LEVL_CODE"] == 2:
@@ -463,6 +471,28 @@ elif page == "Mapping":
     """, unsafe_allow_html=True)
 
 
+    def compute_centroid(feature):
+        geom = shape(feature["geometry"])
+        c = geom.centroid
+        return c.y, c.x  # lat, lon order for pydeck
+
+
+    # height column necessary for stacked maps
+    height_scale = 5000
+    df_year["height"] = df_year["scaled_value"] * height_scale
+
+    # Attaching height to geojson
+    for feature in nuts2_geo["features"]:
+        geo_id = feature["properties"]["NUTS_ID"]
+        match = df_year[df_year["geo"] == geo_id]
+
+        if not match.empty:
+            feature["properties"]["color"] = match["color"].values[0]
+            feature["properties"]["height"] = float(match["height"].values[0])
+        else:
+            feature["properties"]["color"] = [180, 180, 180]
+            feature["properties"]["height"] = 0
+
     # PyDeck layer
     layer = pdk.Layer(
         "GeoJsonLayer",
@@ -480,15 +510,90 @@ elif page == "Mapping":
         data=df_year,
     )
 
-    view_state = pdk.ViewState(
-        latitude=50,
-        longitude=10,
-        zoom=3.3,
-        bearing=0,
-        pitch=35,
+
+# -------------------------------------------
+# Build DATA FOR 3D COLUMN LAYER
+# -------------------------------------------
+
+    columns_data = []
+
+    for feature in nuts2_geo["features"]:
+        geo_id = feature["properties"]["NUTS_ID"]
+        match = df_year[df_year["geo"] == geo_id]
+
+        lat, lon = compute_centroid(feature)
+
+        if not match.empty:
+            value = match[selected_var].values[0]
+            scaled = float(match["scaled_value"].values[0])
+            height = scaled * 75000  # adjust height multiplier
+        else:
+            value = None
+            height = 0
+
+        columns_data.append({
+            "NUTS_ID": geo_id,
+            "value": value,
+            "height": height,
+            "lat": lat,
+            "lon": lon,
+        })
+
+
+    # Column layer
+    column_layer = pdk.Layer(
+        "ColumnLayer",
+        data=columns_data,
+        get_position=["lon", "lat"],
+        get_elevation="height",       # height of each bar
+        elevation_scale=1,
+        radius=20000,                 # size of the column footprint
+        get_fill_color=[255, 140, 0], # orange columns
+        pickable=True,
+        auto_highlight=True,
     )
 
-    st.pydeck_chart(
+
+    # 3D Stacked layer
+    extruded_layer = pdk.Layer(
+        "GeoJsonLayer",
+        nuts2_geo,
+        opacity=0.9,
+        stroked=False,
+        filled=True,
+        extruded=True,
+        wireframe=True,
+        get_fill_color="color",
+        get_elevation="height",
+        elevation_scale=1,
+        pickable=True,
+    )
+
+    # Deciding which view to use depending on the selected map
+    if map_style_choice == "3D Stacked Map":
+        view_state = pdk.ViewState(
+            latitude=50,
+            longitude=10,
+            zoom=3.4, pitch=45,
+            bearing=0
+        )
+    else:
+        view_state = pdk.ViewState(
+            latitude=50,
+            longitude=10,
+            zoom=3.3,
+            bearing=0,
+            pitch=35,
+        )
+
+    if map_style_choice == "Flat Map":
+        layer_to_show = layer
+    else:
+        layer_to_show = extruded_layer
+
+
+    if map_style_choice == "Flat Map":
+        st.pydeck_chart(
         pdk.Deck(
             map_style="mapbox://styles/mapbox/light-v9",
             initial_view_state=view_state,
@@ -497,7 +602,20 @@ elif page == "Mapping":
                 "text": f"NUTS: {{NUTS_ID}}\n{selected_var}: {{{selected_var}}}"
             },
         )
-    )
+        )
+
+    else:
+        st.pydeck_chart(
+        pdk.Deck(
+            map_style="mapbox://styles/mapbox/dark-v10",
+            layers=[column_layer, layer_to_show],
+            initial_view_state=view_state,
+            tooltip={
+                "text": f"NUTS: {{NUTS_ID}}\n{selected_var}: {{{selected_var}}}\n"
+                        f"{selected_var}: {{value}}"
+            }
+        )
+        )
 
 elif page == "Models":
 
