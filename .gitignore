@@ -217,10 +217,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-<<<<<<< HEAD
 
 # Mac
 =======
->>>>>>> e78fae7 (Remove .DS_Store)
-.DS_Store
 .DS_Store
