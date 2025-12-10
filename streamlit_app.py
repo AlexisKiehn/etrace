@@ -418,6 +418,8 @@ elif page == "Mapping":
             feature["properties"]["color"] = [180, 180, 180]   # grey fallback
 
 
+
+
     def highlight_selected_column(df, column_name):
         """
         Resalta la columna seleccionada con un color especial
@@ -498,6 +500,7 @@ elif page == "Mapping":
             },
         )
     )
+    st.divider()
 
 elif page == "Models":
 
