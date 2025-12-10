@@ -80,6 +80,26 @@ SSP_SCENARIOS = {
     }
 }
 
+# Important useful functions
+def extract_all_coords(geometry):
+    coords = geometry["coordinates"]
+    geom_type = geometry["type"]
+
+    all_points = []
+
+    if geom_type == "Polygon":
+        # coords = [ring1, ring2, ...]
+        for ring in coords:
+            all_points.extend(ring)
+
+    elif geom_type == "MultiPolygon":
+        # coords = [poly1, poly2, ...]
+        for poly in coords:
+            for ring in poly:
+                all_points.extend(ring)
+
+    return all_points
+
 
 # Page configuration
 st.set_page_config(
@@ -220,7 +240,104 @@ elif page == "Exploration":
 
         df_region = df[df["NUTS_NAME"] == region].sort_values("year")
 
+        # Load NUTS2 GeoJSON from google cloud
+        client = storage.Client()
+        bucket = client.bucket("etrace-data")
+        blob = bucket.blob("data/raw_data/nuts2_geo.geojson")
+
+        geojson_bytes = blob.download_as_bytes()
+        nuts2_geo = geojson.loads(geojson_bytes.decode("utf-8"))
+
+        # Find the correct NUTS_NAME for the region
+        nuts_id = df_region["geo"].iloc[0]
+
+        # Extracting only the selected nuts region
+        region_feature = [
+            feat for feat in nuts2_geo["features"]
+            if feat["properties"]["NUTS_ID"] == nuts_id
+        ]
+
+        region_geojson = {"type": "FeatureCollection", "features": region_feature}
+
+
         st.subheader(f"📍 Region: **{region}**")
+
+        # Plotting the map of the nuts region selected
+        st.subheader(f"🗺️ Map of {region}")
+
+        ### --- FULL MAP WITH SELECTED REGION HIGHLIGHTED --- ###
+
+        # Background polygons (all regions)
+        background_data = []
+        for feat in nuts2_geo["features"]:
+            geom = feat["geometry"]
+
+            if geom["type"] == "Polygon":
+                coords = geom["coordinates"][0]
+                background_data.append({"polygon": coords})
+            elif geom["type"] == "MultiPolygon":
+                for poly in geom["coordinates"]:
+                    background_data.append({"polygon": poly[0]})
+
+        background_layer = pdk.Layer(
+            "PolygonLayer",
+            data=background_data,
+            get_polygon="polygon",
+            get_fill_color=[200, 200, 200, 80],
+            get_line_color=[80, 80, 80, 160],
+            pickable=False,
+        )
+
+        # ---- Highlight selected region ----
+        region_feature = next(
+            (feat for feat in nuts2_geo["features"]
+                if feat["properties"]["NUTS_ID"] == nuts_id),
+            None
+        )
+
+        if region_feature is None:
+            st.error(f"Region {nuts_id} not found in GeoJSON.")
+        else:
+            geom = region_feature["geometry"]
+            highlight_data = []
+
+            if geom["type"] == "Polygon":
+                highlight_data.append({"polygon": geom["coordinates"][0]})
+            elif geom["type"] == "MultiPolygon":
+                for poly in geom["coordinates"]:
+                    highlight_data.append({"polygon": poly[0]})
+
+            highlight_layer = pdk.Layer(
+                "PolygonLayer",
+                data=highlight_data,
+                get_polygon="polygon",
+                get_fill_color=[60, 140, 230, 200],
+                get_line_color=[0, 0, 0, 255],
+                line_width_min_pixels=2,
+                pickable=False,
+            )
+
+            # Compute center of first polygon
+            poly = highlight_data[0]["polygon"]
+            center_lon = sum([p[0] for p in poly]) / len(poly)
+            center_lat = sum([p[1] for p in poly]) / len(poly)
+
+            view_state = pdk.ViewState(
+                longitude=center_lon,
+                latitude=center_lat,
+                zoom=4,
+            )
+
+            st.pydeck_chart(
+                pdk.Deck(
+                    map_style="mapbox://styles/mapbox/light-v9",
+                    layers=[background_layer, highlight_layer],
+                    initial_view_state=view_state,
+                )
+            )
+
+
+
         st.write(df_region)
 
         st.divider()
