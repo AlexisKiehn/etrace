@@ -82,35 +82,55 @@ SSP_SCENARIOS = {
 
 # Important useful functions
 
+
 def colormap(v):
     if v is None or pd.isna(v):
         return [200, 200, 200]
 
     # Turbo colormap implementation
     turbo = [
-        [48, 18, 59], [53, 41, 133], [37, 66, 167], [20, 92, 157], [16, 120, 130],
-        [32, 144, 92], [68, 164, 54], [112, 181, 25], [160, 194, 9], [210, 203, 8],
-        [255, 209, 28], [255, 189, 51], [255, 158, 73], [255, 116, 95], [255, 64, 112],
-        [237, 5, 121], [203, 0, 122], [155, 0, 112], [102, 0, 92], [56, 0, 63]
+        [48, 18, 59],
+        [53, 41, 133],
+        [37, 66, 167],
+        [20, 92, 157],
+        [16, 120, 130],
+        [32, 144, 92],
+        [68, 164, 54],
+        [112, 181, 25],
+        [160, 194, 9],
+        [210, 203, 8],
+        [255, 209, 28],
+        [255, 189, 51],
+        [255, 158, 73],
+        [255, 116, 95],
+        [255, 64, 112],
+        [237, 5, 121],
+        [203, 0, 122],
+        [155, 0, 112],
+        [102, 0, 92],
+        [56, 0, 63],
     ]
 
-    idx = min(int(v * (len(turbo)-1)), len(turbo)-1)
+    idx = min(int(v * (len(turbo) - 1)), len(turbo) - 1)
     return turbo[idx]
+
 
 def highlight_selected_column(df, column_name):
     """
     Highlights selected column with a special color
     """
-    styles = pd.DataFrame('', index=df.index, columns=df.columns)
+    styles = pd.DataFrame("", index=df.index, columns=df.columns)
     if column_name in df.columns:
-        styles[column_name] = 'background-color: #FFD700; color: black; font-weight: bold'
+        styles[column_name] = (
+            "background-color: #FFD700; color: black; font-weight: bold"
+        )
     return styles
+
 
 def compute_centroid(feature):
     geom = shape(feature["geometry"])
     c = geom.centroid
     return c.y, c.x  # lat, lon order for pydeck
-
 
 
 def extract_all_coords(geometry):
@@ -131,6 +151,7 @@ def extract_all_coords(geometry):
                 all_points.extend(ring)
 
     return all_points
+
 
 @st.cache_data
 def load_predictions():
@@ -247,12 +268,14 @@ st.divider()
 # Dataset Api Call to Load Data
 # ---------------------------------------------------------
 
+
 @st.cache_data(ttl=3600)  # Cache for 1 hour
 def load_main_dataset():
     """Load the main dataset from BigQuery with caching."""
     return load_from_bq(
         "SELECT * FROM `aklewagonproject.etrace.cleaned_final_jaume_dataset_newnames`"
     )
+
 
 @st.cache_data(ttl=1800)  # Cache for 30 minutes
 def load_nuts2_geo():
@@ -262,6 +285,7 @@ def load_nuts2_geo():
     blob = bucket.blob("data/raw_data/nuts2_geo.geojson")
     geojson_bytes = blob.download_as_bytes()
     return geojson.loads(geojson_bytes.decode("utf-8"))
+
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
 def load_predictions_v3():
@@ -286,7 +310,7 @@ def load_predictions_v3():
     pred_df = pd.DataFrame(rows)
 
     # First row is the header → promote it
-    pred_df.columns = pred_df.iloc[0]        # header row
+    pred_df.columns = pred_df.iloc[0]  # header row
     pred_df = pred_df.iloc[1:].reset_index(drop=True)
 
     # Clean column names
@@ -320,6 +344,7 @@ def load_predictions_v3():
     pred_df[NIGHTS_COL] = pd.to_numeric(pred_df[NIGHTS_COL], errors="coerce")
 
     return pred_df
+
 
 df = load_main_dataset()
 
@@ -489,9 +514,7 @@ elif page == "Mapping":
     df_year = df_clean[df_clean["Year"] == selected_year]
 
     # map style
-    map_style_choice = st.radio(
-        "Map Style", ["Flat Map"], horizontal=True
-    )
+    map_style_choice = st.radio("Map Style", ["Flat Map"], horizontal=True)
 
     all_geo2 = []
     for each in nuts2_geo["features"]:
@@ -756,7 +779,7 @@ elif page == "Mapping":
 
 elif page == "Model":
 
-    st.header("🤖 Predictive Models")
+    st.header("🤖 Predictive Model")
 
     # --------------------------
     # Load predictions dataframe
@@ -775,9 +798,12 @@ elif page == "Model":
     NIGHTS_COL = "Overnight_Stays"
     NAME_COL = "NUTS_NAME"
 
-    # Safety checks (optional but helpful while wiring things)
-    missing_cols = [c for c in [SCENARIO_COL, GEO_COL, YEAR_COL, NIGHTS_COL]
-                    if c not in pred_df.columns]
+    # Safety checks
+    missing_cols = [
+        c
+        for c in [SCENARIO_COL, GEO_COL, YEAR_COL, NIGHTS_COL]
+        if c not in pred_df.columns
+    ]
     if missing_cols:
         st.error(f"These columns are missing in prediction table: {missing_cols}")
         st.stop()
@@ -790,36 +816,20 @@ elif page == "Model":
     scenario_list = sorted(pred_df[SCENARIO_COL].unique())
     selected_ssp = st.selectbox("Choose SSP scenario:", scenario_list)
 
-
     df_ssp = pred_df[pred_df[SCENARIO_COL] == selected_ssp]
 
-    region_options = (
-        df_ssp[[GEO_COL]]
-        .drop_duplicates()
-        .sort_values(GEO_COL)
-    )
+    region_options = df_ssp[[GEO_COL]].drop_duplicates().sort_values(GEO_COL)
+
     # Show nice name but keep the code
     region_label_to_code = {
         f"{row[GEO_COL]} ({row[GEO_COL]})": row[GEO_COL]
         for _, row in region_options.iterrows()
     }
 
-    region_name_options = (
-        df_ssp[[NAME_COL]]
-        .drop_duplicates()
-        .sort_values(NAME_COL)
-    )
-
-    # Show FULL name but keep the code
-    region_label_name = {
-        f"{row[NAME_COL]} ({row[NAME_COL]})": row[NAME_COL]
-        for _, row in region_name_options.iterrows()
-    }
-
     selected_label = st.selectbox(
-            "NUTS-2 region:",
-            list(region_label_to_code.keys()),
-        )
+        "NUTS-2 region:",
+        list(region_label_to_code.keys()),
+    )
 
     selected_geo = region_label_to_code[selected_label]
 
@@ -836,10 +846,8 @@ elif page == "Model":
     )
 
     df_map = pred_df[
-        (pred_df[SCENARIO_COL] == selected_ssp) &
-        (pred_df[YEAR_COL] == selected_year)
+        (pred_df[SCENARIO_COL] == selected_ssp) & (pred_df[YEAR_COL] == selected_year)
     ][[GEO_COL, NIGHTS_COL]].copy()
-
 
     # -------------------------------
     # Get the prediction for the row
@@ -860,13 +868,15 @@ elif page == "Model":
     region_name = row[GEO_COL]
     region_name_col = row[NAME_COL]
 
-
-    # Find the correct NUTS_NAME for the region
-    nuts_id = pred_df["NUTS_ID"].iloc[0]
+    # --- FIX START ---
+    # Use the selected_geo from the dropdown, not the first row of the entire dataframe
+    nuts_id = selected_geo
+    # --- FIX END ---
 
     # Extracting only the selected nuts region
     region_feature = [
-        feat for feat in nuts2_geo["features"]
+        feat
+        for feat in nuts2_geo["features"]
         if feat["properties"]["NUTS_ID"] == nuts_id
     ]
 
@@ -897,9 +907,12 @@ elif page == "Model":
 
     # ---- Highlight selected region ----
     region_feature = next(
-        (feat for feat in nuts2_geo["features"]
-         if feat["properties"]["NUTS_ID"] == nuts_id),
-        None
+        (
+            feat
+            for feat in nuts2_geo["features"]
+            if feat["properties"]["NUTS_ID"] == nuts_id
+        ),
+        None,
     )
 
     if region_feature is None:
@@ -960,12 +973,10 @@ elif page == "Model":
 
     # 3D stacked map style
     map_style_choice = st.radio(
-        "Map Style",
-        ["Flat Map", "3D Stacked Map"],
-        horizontal=True
+        "Map Style", ["Flat Map", "3D Stacked Map"], horizontal=True
     )
 
-    all_geo2= []
+    all_geo2 = []
     for each in nuts2_geo["features"]:
         if each.properties["LEVL_CODE"] == 2:
             all_geo2.append(each)
@@ -989,7 +1000,6 @@ elif page == "Model":
     vmax = df_year[NIGHTS_COL].max()
 
     df_year["scaled_value"] = (df_year[NIGHTS_COL] - vmin) / (vmax - vmin)
-
 
     # -------------------------------------------
     # SAFE Normalize values
@@ -1029,9 +1039,7 @@ elif page == "Model":
             feature["properties"]["color"] = [200, 200, 200, 30]  # grey
             feature["properties"]["overnight"] = None
 
-
-
-    st.markdown("### 📊 Color Legend")
+    st.markdown("### Overnight Stays Prediction")
 
     # statistics
     col1, col2, col3 = st.columns(3)
@@ -1042,9 +1050,9 @@ elif page == "Model":
     with col3:
         st.metric("Max value", f"{vmax:,.2f}")
 
-
     # visual grad ( nabla)
-    st.markdown(f"""
+    st.markdown(
+        f"""
     <div style="background: linear-gradient(to right,
         rgb(48,18,59), rgb(37,66,167), rgb(16,120,130),
         rgb(68,164,54), rgb(160,194,9), rgb(255,209,28),
@@ -1056,15 +1064,13 @@ elif page == "Model":
         <span style="font-weight: bold;">{NIGHTS_COL}</span>
         <span>{vmax:.2f}</span>
     </div>
-    """, unsafe_allow_html=True)
-
-
-
+    """,
+        unsafe_allow_html=True,
+    )
 
     # height column necessary for stacked maps
     height_scale = 5000
     df_year["height"] = df_year["scaled_value"] * height_scale
-
 
     # Attaching height to geojson
     for feature in nuts2_geo["features"]:
@@ -1090,15 +1096,13 @@ elif page == "Model":
     )
 
     #  Nikita line
-    df_year= df_year.astype(float, errors="ignore").drop(columns=[None])
-
+    df_year = df_year.astype(float, errors="ignore").drop(columns=[None])
 
     # PyDeck layer
     data_layer = pdk.Layer(
         "DataLayer",
         data=df_year,
     )
-
 
     # -------------------------------------------
     # Build DATA FOR 3D COLUMN LAYER
@@ -1120,28 +1124,28 @@ elif page == "Model":
             value = None
             height = 0
 
-        columns_data.append({
-            "NUTS_ID": geo_id,
-            "value": value,
-            "height": height,
-            "lat": lat,
-            "lon": lon,
-        })
-
+        columns_data.append(
+            {
+                "NUTS_ID": geo_id,
+                "value": value,
+                "height": height,
+                "lat": lat,
+                "lon": lon,
+            }
+        )
 
     # Column layer
     column_layer = pdk.Layer(
         "ColumnLayer",
         data=columns_data,
         get_position=["lon", "lat"],
-        get_elevation="height",       # height of each bar
+        get_elevation="height",  # height of each bar
         elevation_scale=1,
-        radius=20000,                 # size of the column footprint
-        get_fill_color=[255, 140, 0], # orange columns
+        radius=20000,  # size of the column footprint
+        get_fill_color=[255, 140, 0],  # orange columns
         pickable=True,
         auto_highlight=True,
     )
-
 
     # 3D Stacked layer
     extruded_layer = pdk.Layer(
@@ -1161,10 +1165,7 @@ elif page == "Model":
     # Deciding which view to use depending on the selected map
     if map_style_choice == "3D Stacked Map":
         view_state = pdk.ViewState(
-            latitude=50,
-            longitude=10,
-            zoom=3.4, pitch=45,
-            bearing=0
+            latitude=50, longitude=10, zoom=3.4, pitch=45, bearing=0
         )
     else:
         view_state = pdk.ViewState(
@@ -1180,34 +1181,30 @@ elif page == "Model":
     else:
         layer_to_show = extruded_layer
 
-
-
     if map_style_choice == "Flat Map":
         st.pydeck_chart(
-        pdk.Deck(
-            map_style="mapbox://styles/mapbox/light-v9",
-            initial_view_state=view_state,
-            layers=[layer, data_layer],
-            tooltip={
-                "text": f"NUTS: {{NUTS_ID}}\n{NIGHTS_COL}: {{{NIGHTS_COL}}}"
-            },
-        )
+            pdk.Deck(
+                map_style="mapbox://styles/mapbox/light-v9",
+                initial_view_state=view_state,
+                layers=[layer, data_layer],
+                tooltip={"text": f"NUTS: {{NUTS_ID}}\n{NIGHTS_COL}: {{{NIGHTS_COL}}}"},
+            )
         )
 
     else:
         st.pydeck_chart(
-        pdk.Deck(
-            map_style="mapbox://styles/mapbox/dark-v10",
-            layers=[column_layer, layer_to_show],
-            initial_view_state=view_state,
-            tooltip={
-                "text": f"NUTS: {{NUTS_ID}}\n{NIGHTS_COL}: {{{NIGHTS_COL}}}\n"
-                        f"{NIGHTS_COL}: {{value}}"
-            }
-        )
+            pdk.Deck(
+                map_style="mapbox://styles/mapbox/dark-v10",
+                layers=[column_layer, layer_to_show],
+                initial_view_state=view_state,
+                tooltip={
+                    "text": f"NUTS: {{NUTS_ID}}\n{NIGHTS_COL}: {{{NIGHTS_COL}}}\n"
+                    f"{NIGHTS_COL}: {{value}}"
+                },
+            )
         )
 
-    st.subheader("📉 Change in Tourism Compared to 2020")
+    st.subheader("Change in Tourism Compared to 2020")
 
     # -----------------------------------------
     # 1) Extract baseline (2020) and selected year
@@ -1215,17 +1212,19 @@ elif page == "Model":
 
     baseline_year = 2020
 
-
-    df_base = df[df['Year'] == baseline_year][[GEO_COL, NIGHTS_COL]].copy()
+    df_base = df[df["Year"] == baseline_year][[GEO_COL, NIGHTS_COL]].copy()
     df_base = df_base.rename(columns={NIGHTS_COL: "base_nights"})
 
-    df_future = pred_df[pred_df[YEAR_COL] == selected_year][[GEO_COL, NIGHTS_COL]].copy()
+    df_future = pred_df[pred_df[YEAR_COL] == selected_year][
+        [GEO_COL, NIGHTS_COL]
+    ].copy()
     df_future = df_future.rename(columns={NIGHTS_COL: "future_nights"})
 
-
-    df_2020 = df[df['Year'] == 2020][[GEO_COL, NIGHTS_COL]].copy()
+    df_2020 = df[df["Year"] == 2020][[GEO_COL, NIGHTS_COL]].copy()
     difference_df = df_future.merge(df_2020, on=["NUTS_ID"], how="inner")
-    difference_df["delta"] = difference_df["future_nights"] - difference_df["Overnight_Stays"]
+    difference_df["delta"] = (
+        difference_df["future_nights"] - difference_df["Overnight_Stays"]
+    )
 
     # Normalise delta for coloring (min → -1, max → +1)
     max_abs = max(abs(difference_df["delta"].min()), abs(difference_df["delta"].max()))
@@ -1244,7 +1243,7 @@ elif page == "Model":
         if v < 0:
             # Negative → red to yellow
             r = 255
-            g = int(200 * (1 + v))   # v = -1 → g=0, v=0 → g=200
+            g = int(200 * (1 + v))  # v = -1 → g=0, v=0 → g=200
             b = 0
         else:
             # Positive → yellow to green
@@ -1255,7 +1254,6 @@ elif page == "Model":
         return [r, g, b, 160]
 
     difference_df["color"] = difference_df["scaled"].apply(diverging_color)
-
 
     # Attach delta + color to geojson
     color_count = 0
@@ -1272,12 +1270,9 @@ elif page == "Model":
             feature["properties"]["delta"] = None
             feature["properties"]["color"] = [220, 220, 220, 80]
 
-
-    st.subheader(f"🗺️ Change in Overnight Stays: {baseline_year} → {selected_year}")
-
+    st.subheader(f"🗺️ Overnight Stays: {baseline_year} → {selected_year}")
 
     import numpy as np
-
 
     delta_layer = pdk.Layer(
         "GeoJsonLayer",
@@ -1304,13 +1299,9 @@ elif page == "Model":
             map_style="mapbox://styles/mapbox/light-v9",
             layers=[delta_layer],
             initial_view_state=view_state,
-            tooltip={
-                "text": "NUTS: {NUTS_ID}\nΔ Nights: {delta}"
-            },
+            tooltip={"text": "NUTS: {NUTS_ID}\nΔ Nights: {delta}"},
         )
     )
-
-
 
 
 # ---------------------------------------------------------
