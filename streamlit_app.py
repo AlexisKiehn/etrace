@@ -100,6 +100,21 @@ def extract_all_coords(geometry):
 
     return all_points
 
+@st.cache_data
+def load_predictions():
+    bucket = "etrace-data"
+    blob = "data/raw_data/FINAL_DATAFRAME_PREDICTIONS_V1.csv"
+    local_path = "/tmp/FINAL_DATAFRAME_PREDICTIONS_V1.csv"
+
+    csv_path = load_from_bucket(bucket, blob, local_path)
+    df = pd.read_csv(csv_path)
+
+    # Normalise column names (optional but handy)
+    df.columns = [c.strip() for c in df.columns]
+
+    return df
+
+
 
 # Page configuration
 st.set_page_config(
@@ -202,27 +217,18 @@ st.session_state["df"] = df
 # ---------------------------------------------------------
 
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to:", ["Home", "Exploration", "Mapping", "Models"])
+page = st.sidebar.radio("Go to:", ["Home", "Exploration", "Mapping", "Prediction Model"])
 
 if page == 'Home':
 
     st.header("🏠 Home")
     st.markdown("""
     Welcome to the E-TRACE Dashboard! Use the sidebar to navigate between different sections:
-    - **Exploration**: Dive into regional data and visualize time-series indicators.
     - **Mapping**: Explore interactive maps of NUTS-2 regions with various socioeconomic and climate variables.
-    - **Models**: Experiment with predictive models based on future climate and socioeconomic scenarios.
+    - **Prediction Model**: Experiment with predictive models based on future climate and socioeconomic scenarios.
 
     Get started by selecting a page from the sidebar!
     """)
-
-    st.header("📁💻 Loading E-Trace Processed Dataset...")
-    st.success("Dataset loaded successfully!")
-    st.write("### Preview of the data:")
-    st.dataframe(df.head())
-
-    st.write("### Dataset statistics:")
-    st.write(df.describe(include="all"))
 
 elif page == "Exploration":
 
@@ -358,30 +364,44 @@ elif page == "Exploration":
         # Detect climate variables if present
         climate_vars = [col for col in numeric_columns if col.startswith("pct_")]
         for c in climate_vars:
+            # Añadir las variables climáticas al diccionario de variables disponibles
             available_vars[f"Climate: {c}"] = c
 
-        st.header("📈 Time-Series Indicators")
+        # ------------------------
+        # Título principal de la sección
+        st.header("Time-Series Indicators")
 
-        # Plot each available variable
+        # Plot each available variable, skipping all-zero series
         for label, col in available_vars.items():
             if col in df_region.columns:
-                # If it is a climate variable, convert pct_Dfb → Dfb → readable label
+                # Saltar variables que son cero para todos los años en esta región
+                if df_region[col].abs().sum() == 0:
+                    continue
+
+                # Si es una variable climática, obtener la etiqueta legible
                 if col.startswith("pct_"):
                     code = col.replace("pct_", "")  # e.g. Dfb
+                    # Buscar en el diccionario o usar el código si no se encuentra
                     pretty_label = f"Climate: {koppen_labels.get(code, code)}"
                 else:
                     pretty_label = label
 
+                # Mostrar el subtítulo
                 st.subheader(pretty_label)
 
+                # Generar el gráfico de línea interactivo con Plotly Express
                 fig = px.line(
                     df_region,
                     x="year",
                     y=col,
                     markers=True,
-                    title=f"{pretty_label} over time in {region}"
+                    title=f"{pretty_label} over time in {region}",
                 )
+
+                # Ajustar el diseño del gráfico
                 fig.update_layout(height=350)
+
+                # Mostrar el gráfico en Streamlit
                 st.plotly_chart(fig, use_container_width=True)
 
 
@@ -734,48 +754,262 @@ elif page == "Mapping":
         )
         )
 
-elif page == "Models":
-
-    df_clean = st.session_state.get("df")
+elif page == "Prediction Model":
 
     st.header("🤖 Predictive Models")
-    st.write("Select a future climate–socioeconomic pathway (SSP), "
-             "and we will generate a tourism forecast once the model is deployed.")
 
-    # --- SSP scenario dropdown ---
-    scenario = st.selectbox(
-        "Choose a Shared Socioeconomic Pathway (SSP):",
-        list(SSP_SCENARIOS.keys())
+    # --------------------------
+    # Load predictions dataframe
+    # --------------------------
+
+    bucket = "etrace-data"
+    blob = "data/raw_data/FINAL_DATAFRAME_PREDICTIONS_V1.csv"
+    local_path = "/tmp/FINAL_DATAFRAME_PREDICTIONS_V1.csv"
+
+    csv_path = load_from_bucket(bucket, blob, local_path)
+
+    # ---- READ RAW LINES ----
+    with open(csv_path, "r", encoding="utf-8") as f:
+        raw_lines = [line.strip() for line in f.readlines()]
+
+    # Remove outer quotes on each row (important!)
+    clean_lines = [line.strip('"') for line in raw_lines]
+
+    # Split each row by comma
+    rows = [line.split(",") for line in clean_lines]
+
+    # Convert to DataFrame
+    pred_df = pd.DataFrame(rows)
+
+    # First row is the header → promote it
+    pred_df.columns = pred_df.iloc[0]        # header row
+    pred_df = pred_df.iloc[1:].reset_index(drop=True)
+
+    # Clean column names
+    pred_df.columns = pred_df.columns.str.strip().str.replace("\ufeff", "")
+
+    # Clean NUTS_ID and year types
+    pred_df["NUTS_ID"] = pred_df["NUTS_ID"].str.strip()
+    pred_df["scenario"] = pred_df["scenario"].str.strip()
+    pred_df["years"] = pd.to_numeric(pred_df["years"], errors="coerce").astype(int)
+
+
+    # Clean column names
+    pred_df.columns = pred_df.columns.str.strip().str.replace("\ufeff", "")
+
+    # Fix leading commas if any
+    pred_df.columns = pred_df.columns.str.lstrip(",")
+
+    st.write("🔍 Unique scenarios:", pred_df["scenario"].unique())
+    st.write("🔍 Unique regions (NUTS_ID):", pred_df["NUTS_ID"].unique()[:20])
+    st.write("🔍 Year range:", pred_df["years"].min(), "-", pred_df["years"].max())
+
+
+    # SHOW PREVIEW
+    st.write("Raw file preview:", raw_lines[:5])
+    st.write("Detected columns:", list(pred_df.columns))
+
+
+
+
+    # === Adjust these if your CSV uses other names ===
+    SCENARIO_COL = "scenario"
+    GEO_COL       = "NUTS_ID"
+    YEAR_COL      = "years"
+    NIGHTS_COL    = "pred_stacking"
+    # =================================================
+
+    # Clean column types
+    pred_df[SCENARIO_COL] = pred_df[SCENARIO_COL].str.strip()
+    pred_df[GEO_COL] = pred_df[GEO_COL].str.strip()
+
+    # Convert to numeric
+    pred_df[YEAR_COL] = pd.to_numeric(pred_df[YEAR_COL], errors="coerce").astype(int)
+    pred_df[NIGHTS_COL] = pd.to_numeric(pred_df[NIGHTS_COL], errors="coerce")
+
+    # Safety checks (optional but helpful while wiring things)
+    missing_cols = [c for c in [SCENARIO_COL, GEO_COL, YEAR_COL, NIGHTS_COL]
+                    if c not in pred_df.columns]
+    if missing_cols:
+        st.error(f"These columns are missing in prediction table: {missing_cols}")
+        st.stop()
+
+    # ---------------------------------
+    # User controls: SSP, region, year
+    # ---------------------------------
+    st.subheader("Select scenario and region")
+
+    ssp_options = sorted(pred_df[SCENARIO_COL].unique())
+    selected_ssp = st.selectbox("Shared Socioeconomic Pathway (SSP):", ssp_options)
+
+    df_ssp = pred_df[pred_df[SCENARIO_COL] == selected_ssp]
+
+    region_options = (
+        df_ssp[[GEO_COL]]
+        .drop_duplicates()
+        .sort_values(GEO_COL)
     )
-
-    st.info(SSP_SCENARIOS[scenario]["description"])
-
-    # Optional: user selects target region
-    nuts_choice = st.selectbox(
-        "Select NUTS-2 region:",
-        sorted(df_clean["NUTS_NAME"].unique())
-    )
-
-    # Optional: year selection for future prediction
-    year_choice = st.slider("Forecast year:", 2025, 2075, 2035)
-
-    # Build the API input payload
-    inference_payload = {
-        "region": nuts_choice,
-        "target_year": year_choice,
-        "scenario": scenario,
-        "scenario_features": SSP_SCENARIOS[scenario]
+    # Show nice name but keep the code
+    region_label_to_code = {
+        f"{row[GEO_COL]} ({row[GEO_COL]})": row[GEO_COL]
+        for _, row in region_options.iterrows()
     }
 
-    st.subheader("📦 Prediction Payload Preview")
-    st.json(inference_payload)
+    selected_label = st.selectbox(
+        "NUTS-2 region:",
+        list(region_label_to_code.keys()),
+    )
+    selected_geo = region_label_to_code[selected_label]
 
-    # --- Predict button (API call will go here later) ---
-    if st.button("🚀 Run Prediction (coming soon)"):
-        st.warning("Model not deployed yet — API call placeholder active.")
-        # This is where you'll insert:
-        # response = requests.post(MODEL_URL, json=inference_payload)
-        # st.success(f"Predicted value: {response.json()['prediction']}")
+    df_region = df_ssp[df_ssp[GEO_COL] == selected_geo]
+
+    year_min = int(df_region[YEAR_COL].min())
+    year_max = int(df_region[YEAR_COL].max())
+    selected_year = st.slider(
+        "Prediction year:",
+        min_value=year_min,
+        max_value=year_max,
+        value=year_min,
+        step=1,
+    )
+
+    # -------------------------------
+    # Get the prediction for the row
+    # -------------------------------
+    row_mask = (
+        (pred_df[SCENARIO_COL] == selected_ssp)
+        & (pred_df[GEO_COL] == selected_geo)
+        & (pred_df[YEAR_COL] == selected_year)
+    )
+    row = pred_df[row_mask]
+
+    if row.empty:
+        st.warning("No prediction found for this combination of SSP, region and year.")
+        st.stop()
+
+    row = row.iloc[0]
+    nights_pred = float(row[NIGHTS_COL])
+    region_name = row[GEO_COL]
+
+    # Show a metric
+    st.subheader("Predicted tourism")
+    st.metric(
+        label=f"Predicted nights stayed in {region_name} ({selected_geo})",
+        value=f"{nights_pred:,.0f}",
+        delta=None,
+        help=f"Scenario: {selected_ssp}, year: {selected_year}",
+    )
+
+    st.markdown("---")
+    st.subheader("Map view for this scenario and year")
+
+    # -----------------------------------------
+    # Build a Europe map coloured by prediction
+    # -----------------------------------------
+
+    # 1) Filter to the chosen SSP & year for all regions
+    df_map = pred_df[
+        (pred_df[SCENARIO_COL] == selected_ssp)
+        & (pred_df[YEAR_COL] == selected_year)
+    ][[GEO_COL, NIGHTS_COL]].copy()
+
+    # Convert to numeric
+    df_map[NIGHTS_COL] = pd.to_numeric(df_map[NIGHTS_COL], errors="coerce")
+
+    # Normalise values 0–1 for colouring
+    vmin = df_map[NIGHTS_COL].min()
+    vmax = df_map[NIGHTS_COL].max()
+
+    if vmin == vmax:
+        df_map["scaled"] = 0.5
+    else:
+        df_map["scaled"] = (df_map[NIGHTS_COL] - vmin) / (vmax - vmin)
+
+    def colormap(v, selected):
+        """
+        v: scaled value between 0 and 1
+        selected: bool, whether this is the chosen region
+        """
+        if selected:
+            # strong orange highlight for the selected region
+            return [255, 140, 0, 220]
+        # otherwise, blue-ish scale
+        r = int(50 + 150 * v)
+        g = int(80 + 120 * (1 - v))
+        b = 200
+        return [r, g, b, 180]
+
+    df_map["color"] = df_map.apply(
+        lambda r: colormap(r["scaled"], r[GEO_COL] == selected_geo),
+        axis=1,
+    )
+
+    # 2) Load NUTS2 GeoJSON from google cloud
+    client = storage.Client()
+    bucket = client.bucket("etrace-data")
+    blob = bucket.blob("data/raw_data/nuts2_geo.geojson")
+
+    geojson_bytes = blob.download_as_bytes()
+    nuts2_geo = geojson.loads(geojson_bytes.decode("utf-8"))
+
+    # Keep only NUTS2
+    nuts2_geo["features"] = [
+        f for f in nuts2_geo["features"]
+        if f["properties"]["LEVL_CODE"] == 2
+    ]
+
+    # 3) Attach colors + predicted values to GeoJSON features
+    for feature in nuts2_geo["features"]:
+        geo_id = feature["properties"]["NUTS_ID"]
+
+        # match against df_map -> filtered by SSP & year and with color column
+        match = df_map[df_map[GEO_COL] == geo_id]
+
+        if not match.empty:
+            # attach predicted nights
+            feature["properties"][NIGHTS_COL] = float(match[NIGHTS_COL].values[0])
+
+            # attach RGBA color
+            feature["properties"]["color"] = match["color"].values[0]
+
+        else:
+            # region absent for this scenario → grey fallback
+            feature["properties"][NIGHTS_COL] = None
+            feature["properties"]["color"] = [200, 200, 200, 80]
+
+
+    # 4) Build pydeck layer
+    map_layer = pdk.Layer(
+        "GeoJsonLayer",
+        nuts2_geo,
+        stroked=True,
+        filled=True,
+        get_fill_color="properties.color",
+        get_line_color=[80, 80, 80, 255],
+        line_width_min_pixels=0.5,
+        pickable=True,
+    )
+
+    view_state = pdk.ViewState(
+        latitude=50,
+        longitude=10,
+        zoom=3.3,
+        bearing=0,
+        pitch=30,
+    )
+
+    st.pydeck_chart(
+        pdk.Deck(
+            map_style="mapbox://styles/mapbox/light-v9",
+            initial_view_state=view_state,
+            layers=[map_layer],
+            tooltip={
+                "text": "NUTS: {NUTS_ID}\n"
+                    f"{NIGHTS_COL}: {{{NIGHTS_COL}}}",
+            },
+        )
+    )
+
 
 
 
