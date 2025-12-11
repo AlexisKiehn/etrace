@@ -247,9 +247,81 @@ st.divider()
 # Dataset Api Call to Load Data
 # ---------------------------------------------------------
 
-df = load_from_bq(
-    "SELECT * FROM `aklewagonproject.etrace.cleaned_final_jaume_dataset_newnames`"
-)
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+def load_main_dataset():
+    """Load the main dataset from BigQuery with caching."""
+    return load_from_bq(
+        "SELECT * FROM `aklewagonproject.etrace.cleaned_final_jaume_dataset_newnames`"
+    )
+
+@st.cache_data(ttl=1800)  # Cache for 30 minutes
+def load_nuts2_geo():
+    """Load NUTS2 GeoJSON from Google Cloud Storage with caching."""
+    client = storage.Client()
+    bucket = client.bucket("etrace-data")
+    blob = bucket.blob("data/raw_data/nuts2_geo.geojson")
+    geojson_bytes = blob.download_as_bytes()
+    return geojson.loads(geojson_bytes.decode("utf-8"))
+
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+def load_predictions_v3():
+    """Load and parse predictions V3 CSV with complex formatting."""
+    bucket = "etrace-data"
+    blob = "data/raw_data/FINAL_DATAFRAME_PREDICTIONS_V3.csv"
+    local_path = "/tmp/FINAL_DATAFRAME_PREDICTIONS_V3.csv"
+
+    csv_path = load_from_bucket(bucket, blob, local_path)
+
+    # ---- READ RAW LINES ----
+    with open(csv_path, "r", encoding="utf-8") as f:
+        raw_lines = [line.strip() for line in f.readlines()]
+
+    # Remove outer quotes on each row (important!)
+    clean_lines = [line.strip('"') for line in raw_lines]
+
+    # Split each row by comma
+    rows = [line.split(",") for line in clean_lines]
+
+    # Convert to DataFrame
+    pred_df = pd.DataFrame(rows)
+
+    # First row is the header → promote it
+    pred_df.columns = pred_df.iloc[0]        # header row
+    pred_df = pred_df.iloc[1:].reset_index(drop=True)
+
+    # Clean column names
+    pred_df.columns = pred_df.columns.str.strip().str.replace("\ufeff", "")
+
+    # Clean NUTS_ID and year types
+    pred_df["NUTS_ID"] = pred_df["NUTS_ID"].str.strip()
+    pred_df["Scenario"] = pred_df["Scenario"].str.strip()
+    pred_df["Year"] = pd.to_numeric(pred_df["Year"], errors="coerce").astype(int)
+
+    # Clean column names again
+    pred_df.columns = pred_df.columns.str.strip().str.replace("\ufeff", "")
+
+    # Fix leading commas if any
+    pred_df.columns = pred_df.columns.str.lstrip(",")
+
+    # Define column names
+    SCENARIO_COL = "Scenario"
+    GEO_COL = "NUTS_ID"
+    YEAR_COL = "Year"
+    NIGHTS_COL = "Overnight_Stays"
+    NAME_COL = "NUTS_NAME"
+
+    # Clean column types
+    pred_df[SCENARIO_COL] = pred_df[SCENARIO_COL].str.strip()
+    pred_df[GEO_COL] = pred_df[GEO_COL].str.strip()
+    pred_df[NAME_COL] = pred_df[NAME_COL].str.strip()
+
+    # Convert to numeric
+    pred_df[YEAR_COL] = pd.to_numeric(pred_df[YEAR_COL], errors="coerce").astype(int)
+    pred_df[NIGHTS_COL] = pd.to_numeric(pred_df[NIGHTS_COL], errors="coerce")
+
+    return pred_df
+
+df = load_main_dataset()
 
 st.session_state["df"] = df
 
@@ -395,13 +467,8 @@ elif page == "Mapping":
         st.warning("Something went wrong uploading the data.")
         st.stop()
 
-    # Load NUTS2 GeoJSON from google cloud
-    client = storage.Client()
-    bucket = client.bucket("etrace-data")
-    blob = bucket.blob("data/raw_data/nuts2_geo.geojson")
-
-    geojson_bytes = blob.download_as_bytes()
-    nuts2_geo = geojson.loads(geojson_bytes.decode("utf-8"))
+    # Load NUTS2 GeoJSON from google cloud (cached)
+    nuts2_geo = load_nuts2_geo()
 
     # Ensure 'NUTS_ID' column exists
     if "NUTS_ID" not in df_clean.columns:
@@ -695,68 +762,18 @@ elif page == "Model":
     # Load predictions dataframe
     # --------------------------
 
-    # Load NUTS2 GeoJSON from google cloud
-    client = storage.Client()
-    bucket = client.bucket("etrace-data")
-    blob = bucket.blob("data/raw_data/nuts2_geo.geojson")
+    # Load NUTS2 GeoJSON from google cloud (cached)
+    nuts2_geo = load_nuts2_geo()
 
-    geojson_bytes = blob.download_as_bytes()
-    nuts2_geo = geojson.loads(geojson_bytes.decode("utf-8"))
+    # Load predictions data (cached)
+    pred_df = load_predictions_v3()
 
-    bucket = "etrace-data"
-    blob = "data/raw_data/FINAL_DATAFRAME_PREDICTIONS_V3.csv"
-    local_path = "/tmp/FINAL_DATAFRAME_PREDICTIONS_V3.csv"
-
-    csv_path = load_from_bucket(bucket, blob, local_path)
-
-    # ---- READ RAW LINES ----
-    with open(csv_path, "r", encoding="utf-8") as f:
-        raw_lines = [line.strip() for line in f.readlines()]
-
-    # Remove outer quotes on each row (important!)
-    clean_lines = [line.strip('"') for line in raw_lines]
-
-    # Split each row by comma
-    rows = [line.split(",") for line in clean_lines]
-
-    # Convert to DataFrame
-    pred_df = pd.DataFrame(rows)
-
-    # First row is the header → promote it
-    pred_df.columns = pred_df.iloc[0]        # header row
-    pred_df = pred_df.iloc[1:].reset_index(drop=True)
-
-    # Clean column names
-    pred_df.columns = pred_df.columns.str.strip().str.replace("\ufeff", "")
-
-    # Clean NUTS_ID and year types
-    pred_df["NUTS_ID"] = pred_df["NUTS_ID"].str.strip()
-    pred_df["Scenario"] = pred_df["Scenario"].str.strip()
-    pred_df["Year"] = pd.to_numeric(pred_df["Year"], errors="coerce").astype(int)
-
-
-    # Clean column names
-    pred_df.columns = pred_df.columns.str.strip().str.replace("\ufeff", "")
-
-    # Fix leading commas if any
-    pred_df.columns = pred_df.columns.str.lstrip(",")
-
-    # === Adjust these if your CSV uses other names ===
+    # Column definitions for compatibility
     SCENARIO_COL = "Scenario"
-    GEO_COL       = "NUTS_ID"
-    YEAR_COL      = "Year"
-    NIGHTS_COL    = "Overnight_Stays"
-    NAME_COL      = "NUTS_NAME"
-    # =================================================
-
-    # Clean column types
-    pred_df[SCENARIO_COL] = pred_df[SCENARIO_COL].str.strip()
-    pred_df[GEO_COL] = pred_df[GEO_COL].str.strip()
-    pred_df[NAME_COL] = pred_df[NAME_COL].str.strip()
-
-    # Convert to numeric
-    pred_df[YEAR_COL] = pd.to_numeric(pred_df[YEAR_COL], errors="coerce").astype(int)
-    pred_df[NIGHTS_COL] = pd.to_numeric(pred_df[NIGHTS_COL], errors="coerce")
+    GEO_COL = "NUTS_ID"
+    YEAR_COL = "Year"
+    NIGHTS_COL = "Overnight_Stays"
+    NAME_COL = "NUTS_NAME"
 
     # Safety checks (optional but helpful while wiring things)
     missing_cols = [c for c in [SCENARIO_COL, GEO_COL, YEAR_COL, NIGHTS_COL]
@@ -1199,7 +1216,7 @@ elif page == "Model":
     baseline_year = 2020
 
 
-    df_base = df[df['Overnight_Stays'] == baseline_year][[GEO_COL, NIGHTS_COL]].copy()
+    df_base = df[df['Year'] == baseline_year][[GEO_COL, NIGHTS_COL]].copy()
     df_base = df_base.rename(columns={NIGHTS_COL: "base_nights"})
 
     df_future = pred_df[pred_df[YEAR_COL] == selected_year][[GEO_COL, NIGHTS_COL]].copy()
@@ -1235,11 +1252,13 @@ elif page == "Model":
             g = 255
             b = 0
 
-        return [r, g, b, 200]
+        return [r, g, b, 160]
 
     difference_df["color"] = difference_df["scaled"].apply(diverging_color)
 
+
     # Attach delta + color to geojson
+    color_count = 0
     for feature in nuts2_geo["features"]:
         geo_id = feature["properties"]["NUTS_ID"]
 
@@ -1248,25 +1267,25 @@ elif page == "Model":
         if not match.empty:
             feature["properties"]["delta"] = float(match["delta"].values[0])
             feature["properties"]["color"] = match["color"].values[0]
+            color_count += 1
         else:
             feature["properties"]["delta"] = None
             feature["properties"]["color"] = [220, 220, 220, 80]
+
 
     st.subheader(f"🗺️ Change in Overnight Stays: {baseline_year} → {selected_year}")
 
 
     import numpy as np
 
-    difference_df["color"] = np.repeat([48, 18, 59], len(difference_df)).reshape(-1, 3).tolist()
-    data_layer = pdk.Layer("DataLayer", data=difference_df)
-
 
     delta_layer = pdk.Layer(
         "GeoJsonLayer",
         nuts2_geo,
+        opacity=0.75,
         stroked=True,
         filled=True,
-        get_fill_color="properties.color",
+        get_fill_color="color",
         get_line_color=[80, 80, 80],
         line_width_min_pixels=1,
         pickable=True,
@@ -1283,7 +1302,7 @@ elif page == "Model":
     st.pydeck_chart(
         pdk.Deck(
             map_style="mapbox://styles/mapbox/light-v9",
-            layers=[delta_layer, data_layer],
+            layers=[delta_layer],
             initial_view_state=view_state,
             tooltip={
                 "text": "NUTS: {NUTS_ID}\nΔ Nights: {delta}"
