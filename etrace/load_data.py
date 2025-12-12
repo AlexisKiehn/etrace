@@ -12,13 +12,13 @@ credentials = service_account.Credentials.from_service_account_info(
 
 client = bigquery.Client(credentials=credentials)
 
-
+@st.cache_data(ttl=900)
 def load_from_bq(query: str):
     query_job = client.query(query)
     results = query_job.result()
     return results.to_dataframe()
 
-
+@st.cache_data(ttl=900)
 def load_from_bucket(
     bucket_name: str, source_blob_name: str, destination_file_name: str
 ):

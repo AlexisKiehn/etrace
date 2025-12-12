@@ -125,7 +125,7 @@ def colormap(v):
     return turbo[idx]
 
 
-@st.cache_data(ttl=900)  # Cache for 15 minutes
+
 def highlight_selected_column(df, column_name):
     """
     Highlights selected column with a special color
@@ -138,7 +138,7 @@ def highlight_selected_column(df, column_name):
     return styles
 
 
-@st.cache_data(ttl=900)  # Cache for 15 minutes
+
 def compute_centroid(feature):
     geom = shape(feature["geometry"])
     c = geom.centroid
