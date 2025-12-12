@@ -91,6 +91,7 @@ SSP_SCENARIOS = {
 
 # Important useful functions
 
+
 @st.cache_data(ttl=900)  # Cache for 15 minutes
 def colormap(v):
     if v is None or pd.isna(v):
@@ -123,6 +124,7 @@ def colormap(v):
     idx = min(int(v * (len(turbo) - 1)), len(turbo) - 1)
     return turbo[idx]
 
+
 @st.cache_data(ttl=900)  # Cache for 15 minutes
 def highlight_selected_column(df, column_name):
     """
@@ -135,11 +137,13 @@ def highlight_selected_column(df, column_name):
         )
     return styles
 
+
 @st.cache_data(ttl=900)  # Cache for 15 minutes
 def compute_centroid(feature):
     geom = shape(feature["geometry"])
     c = geom.centroid
     return c.y, c.x  # lat, lon order for pydeck
+
 
 @st.cache_data(ttl=900)  # Cache for 15 minutes
 def extract_all_coords(geometry):
@@ -995,6 +999,7 @@ elif page == "Model":
     for feature in nuts2_geo["features"]:
         geo_id = feature["properties"]["NUTS_ID"]
         match = df_year[df_year["NUTS_ID"] == geo_id]
+        match = match.loc[match[SCENARIO_COL] == selected_ssp]
 
         if not match.empty:
             feature["properties"][NIGHTS_COL] = float(match[NIGHTS_COL].values[0])
@@ -1036,6 +1041,7 @@ elif page == "Model":
     for feature in nuts2_geo["features"]:
         geo_id = feature["properties"]["NUTS_ID"]
         match = df_map[df_map[GEO_COL] == geo_id]
+        # match = match.loc[match[SCENARIO_COL] == selected_ssp]
 
         if not match.empty:
             try:
@@ -1080,11 +1086,13 @@ elif page == "Model":
     # height column necessary for stacked maps
     height_scale = 5000
     df_year["height"] = df_year["scaled_value"] * height_scale
+    #
 
     # Attaching height to geojson
     for feature in nuts2_geo["features"]:
         geo_id = feature["properties"]["NUTS_ID"]
         match = df_year[df_year["NUTS_ID"] == geo_id]
+        match = match.loc[match[SCENARIO_COL] == selected_ssp]
 
         if not match.empty:
             feature["properties"]["color"] = match["color"].values[0]
@@ -1106,6 +1114,7 @@ elif page == "Model":
 
     #  Nikita line
     df_year = df_year.astype(float, errors="ignore").drop(columns=[None])
+    # df_year = df_year.loc[df_year[SCENARIO_COL] == selected_ssp]
 
     # PyDeck layer
     data_layer = pdk.Layer(
@@ -1122,6 +1131,7 @@ elif page == "Model":
     for feature in nuts2_geo["features"]:
         geo_id = feature["properties"]["NUTS_ID"]
         match = df_year[df_year["NUTS_ID"] == geo_id]
+        match = match.loc[match[SCENARIO_COL] == selected_ssp]
 
         lat, lon = compute_centroid(feature)
 
