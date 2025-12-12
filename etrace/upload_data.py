@@ -1,6 +1,17 @@
 from google.cloud.storage import Blob, Client
+from google.cloud import bigquery
 
-client = Client()
+
+import streamlit as st
+from google.oauth2 import service_account
+from google.cloud import bigquery
+
+# Create API client.
+credentials = service_account.Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"]
+)
+
+client = bigquery.Client(credentials=credentials)
 
 
 def upload_to_gcs(bucket_name: str, destination_blob_name: str, source_file_name: str):

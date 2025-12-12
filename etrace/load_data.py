@@ -1,7 +1,16 @@
 from google.cloud.storage import Blob, Client
 from google.cloud import bigquery
 
-client = bigquery.Client()
+import streamlit as st
+from google.oauth2 import service_account
+from google.cloud import bigquery
+
+# Create API client.
+credentials = service_account.Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"]
+)
+
+client = bigquery.Client(credentials=credentials)
 
 
 def load_from_bq(query: str):
@@ -14,7 +23,7 @@ def load_from_bucket(
     bucket_name: str, source_blob_name: str, destination_file_name: str
 ):
     """Downloads a file from Google Cloud Storage."""
-    storage_client = Client()
+    storage_client = Client(credentials=credentials)
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(source_blob_name)
 
