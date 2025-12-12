@@ -9,6 +9,15 @@ from etrace.load_data import load_from_bq, load_from_bucket
 from google.cloud import storage
 from shapely.geometry import shape
 
+import streamlit as st
+from google.oauth2 import service_account
+from google.cloud import bigquery
+
+# Create API client.
+credentials = service_account.Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"]
+)
+
 # ---------------------------------------------------------
 # E-TRACE: European Tourism Regional Analysis & Climate Effects
 # Basic Streamlit Frontend Starter Template
@@ -280,7 +289,7 @@ def load_main_dataset():
 @st.cache_data(ttl=1800)  # Cache for 30 minutes
 def load_nuts2_geo():
     """Load NUTS2 GeoJSON from Google Cloud Storage with caching."""
-    client = storage.Client()
+    client = storage.Client(credentials=credentials)
     bucket = client.bucket("etrace-data")
     blob = bucket.blob("data/raw_data/nuts2_geo.geojson")
     geojson_bytes = blob.download_as_bytes()
