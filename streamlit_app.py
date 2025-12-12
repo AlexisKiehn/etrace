@@ -288,11 +288,11 @@ def load_nuts2_geo():
 
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
-def load_predictions_v3():
-    """Load and parse predictions V3 CSV with complex formatting."""
+def load_predictions_v5():
+    """Load and parse predictions V5 CSV with complex formatting."""
     bucket = "etrace-data"
-    blob = "data/raw_data/FINAL_DATAFRAME_PREDICTIONS_V3.csv"
-    local_path = "/tmp/FINAL_DATAFRAME_PREDICTIONS_V3.csv"
+    blob = "data/raw_data/FINAL_DATAFRAME_PREDICTIONS_V5.csv"
+    local_path = "/tmp/FINAL_DATAFRAME_PREDICTIONS_V5.csv"
 
     csv_path = load_from_bucket(bucket, blob, local_path)
 
@@ -789,7 +789,7 @@ elif page == "Model":
     nuts2_geo = load_nuts2_geo()
 
     # Load predictions data (cached)
-    pred_df = load_predictions_v3()
+    pred_df = load_predictions_v5()
 
     # Column definitions for compatibility
     SCENARIO_COL = "Scenario"
