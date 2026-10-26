@@ -19,3 +19,4 @@ geojson
 fastapi
 uvicorn
 joblib
+yfinance
