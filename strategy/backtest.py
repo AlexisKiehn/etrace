@@ -103,7 +103,13 @@ def run(scores, prices, cfg=Config()):
     rows = []
     for i in range(12, len(dates) - 1):
         d, nxt = dates[i], dates[i + 1]
-        w = target_weights(scores, daily_rets, monthly_px, d, cfg)
+        # Time-varying scores (rows = publication date) are used as of the rebalance date.
+        if isinstance(scores, pd.DataFrame):
+            known = scores.loc[:d]
+            s = known.iloc[-1].dropna() if len(known) else pd.Series(dtype=float)
+        else:
+            s = scores
+        w = target_weights(s, daily_rets, monthly_px, d, cfg)
         turnover = w.subtract(prev, fill_value=0).abs().sum()
         r = (w * monthly_rets.loc[nxt, w.index].fillna(0)).sum()
         rows.append({"date": nxt, "gross_ret": r, "turnover": turnover,

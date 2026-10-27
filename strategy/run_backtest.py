@@ -15,10 +15,20 @@ import pandas as pd
 
 from strategy import backtest
 from strategy.data import load_prices
+from strategy.dynamic_signals import country_momentum, tourism_surprise, yield_spread
+from strategy.factors import blend, zscore
 from strategy.signals import country_scores
 from strategy.universe import COUNTRY_NAMES, REAL_ESTATE, all_tickers
 
 OUT = Path(__file__).resolve().parent / "output"
+
+# Time-varying signals that can be blended with the climate score. Only momentum
+# passed the tests in signal_tests.py, so it is the default.
+EXTRA_SIGNALS = {
+    "momentum": lambda prices, countries: country_momentum(prices, countries),
+    "yield_spread": lambda prices, countries: yield_spread(countries),
+    "tourism_surprise": lambda prices, countries: tourism_surprise(countries),
+}
 
 
 def main():
@@ -32,6 +42,9 @@ def main():
     p.add_argument("--commodity-weight", type=float, default=0.2)
     p.add_argument("--vol-target", type=float, default=0.10)
     p.add_argument("--cost-bps", type=float, default=15.0)
+    p.add_argument("--signals", nargs="*", default=["momentum"], choices=list(EXTRA_SIGNALS),
+                   help="time-varying signals blended equally with the climate score "
+                        "(pass --signals with no names for the climate score alone)")
     p.add_argument("--refresh", action="store_true", help="re-download prices")
     a = p.parse_args()
 
@@ -44,7 +57,14 @@ def main():
         long_short=not a.long_only, trend_filter=not a.no_trend,
         commodity_weight=a.commodity_weight, vol_target=a.vol_target, cost_bps=a.cost_bps,
     )
-    result, weights = backtest.run(scores.score, prices, cfg)
+    parts = [zscore(scores.score)]
+    parts += [zscore(EXTRA_SIGNALS[n](prices, list(REAL_ESTATE))) for n in a.signals]
+    combined = blend(parts)
+    if a.signals:
+        print(f"\nLatest combined score (climate + {' + '.join(a.signals)}):")
+        print(combined.dropna(how="all").iloc[-1].rename(COUNTRY_NAMES).sort_values(ascending=False)
+              .round(2).to_string())
+    result, weights = backtest.run(combined, prices, cfg)
     bench = backtest.benchmark(prices, result.index[0]).reindex(result.index)
 
     table = pd.DataFrame({
