@@ -8,9 +8,14 @@ Portfolio construction at each month end:
      disagrees with its direction (no longs in a downtrend, no shorts in an uptrend).
   4. Real estate book and commodity sleeve are scaled to their risk budgets, then the
      whole portfolio is scaled to a target volatility with a leverage cap.
-Positions are held to the next month end; costs are charged on turnover.
+With hold_months = H > 1 the book is H overlapping tranches: each month a new tranche
+is formed from that month's signal and kept for H months, and the portfolio is their
+average. This gives an H-month holding period while still producing monthly returns.
+With staggered = False the whole book is instead rebalanced once every H months and
+left to drift in between. Costs are charged on turnover.
 """
 
+from collections import deque
 from dataclasses import dataclass
 
 import numpy as np
@@ -30,6 +35,10 @@ class Config:
     vol_lookback: int = 63          # trading days
     cov_lookback: int = 126
     max_position: float = 0.15      # cap per instrument, as a share of gross before vol scaling
+    hold_months: int = 1            # each month's new positions are held this long (overlapping)
+    staggered: bool = True          # False: trade the whole book once every hold_months instead
+                                    # (hold_months=0: buy once and never trade again)
+    offset: int = 0                 # with staggered=False, which month of the cycle to trade in
 
 
 def _momentum(monthly, date):
@@ -100,6 +109,7 @@ def run(scores, prices, cfg=Config()):
 
     weights = {}
     prev = pd.Series(dtype=float)
+    tranches = deque(maxlen=cfg.hold_months)
     rows = []
     for i in range(12, len(dates) - 1):
         d, nxt = dates[i], dates[i + 1]
@@ -109,7 +119,13 @@ def run(scores, prices, cfg=Config()):
             s = known.iloc[-1].dropna() if len(known) else pd.Series(dtype=float)
         else:
             s = scores
-        w = target_weights(s, daily_rets, monthly_px, d, cfg)
+        if cfg.staggered:
+            tranches.append(target_weights(s, daily_rets, monthly_px, d, cfg))
+            w = pd.concat(list(tranches), axis=1).fillna(0).sum(axis=1) / len(tranches)
+        elif i == 12 or (cfg.hold_months and (i - 12 - cfg.offset) % cfg.hold_months == 0):
+            w = target_weights(s, daily_rets, monthly_px, d, cfg)
+        else:
+            w = prev  # hold: positions drift with prices, no trading
         turnover = w.subtract(prev, fill_value=0).abs().sum()
         r = (w * monthly_rets.loc[nxt, w.index].fillna(0)).sum()
         rows.append({"date": nxt, "gross_ret": r, "turnover": turnover,

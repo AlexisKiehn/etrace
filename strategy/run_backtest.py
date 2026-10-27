@@ -42,6 +42,9 @@ def main():
     p.add_argument("--commodity-weight", type=float, default=0.2)
     p.add_argument("--vol-target", type=float, default=0.10)
     p.add_argument("--cost-bps", type=float, default=15.0)
+    p.add_argument("--hold-months", type=int, default=12,
+                   help="holding period; each month's positions are held this long in "
+                        "overlapping tranches (1 = rebalance everything monthly)")
     p.add_argument("--signals", nargs="*", default=["momentum"], choices=list(EXTRA_SIGNALS),
                    help="time-varying signals blended equally with the climate score "
                         "(pass --signals with no names for the climate score alone)")
@@ -56,6 +59,7 @@ def main():
     cfg = backtest.Config(
         long_short=not a.long_only, trend_filter=not a.no_trend,
         commodity_weight=a.commodity_weight, vol_target=a.vol_target, cost_bps=a.cost_bps,
+        hold_months=a.hold_months,
     )
     parts = [zscore(scores.score)]
     parts += [zscore(EXTRA_SIGNALS[n](prices, list(REAL_ESTATE))) for n in a.signals]
