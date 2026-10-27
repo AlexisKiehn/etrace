@@ -39,6 +39,9 @@ python -m strategy.horizon_tests                     # all signals at 6 and 12 m
 python -m strategy.theme_tests                       # Nordic offices, northern Sweden, forests
 python -m strategy.buy_and_hold                      # buy once, never trade (~2 min)
 python -m strategy.mechanism_tests                   # does warming lift cold regions? (~2 min)
+python -m strategy.history_tests                     # 150-year test of country traits (~10 min)
+python -m strategy.country_model                     # today's country scores and positions
+python -m strategy.country_model --backtest          # plus the check on country ETFs since 2001
 ```
 
 Outputs (returns, weights, scores, equity chart) are written to `strategy/output/`.
@@ -197,6 +200,64 @@ House price regressions control for population growth and use country fixed effe
 - Regional forest growth could not be tested: the Swedish forest inventory (SLU) API was down.
 
 Overall: the mechanism is not visible yet. Warming so far is a fraction of what is projected, so this is "not yet detectable", not "false".
+
+## 150-year test of country traits (`history_tests.py`)
+
+The traits come from the investor's own views; the values come from data, so there is no hindsight in choosing countries. Signs were fixed before testing. Data: Jordà-Schularick-Taylor Macrohistory Database (16 countries with stock returns, 1870-2020), plus Lee-Lee schooling, V-Dem, SIPRI/GMSD military spending, Gapminder fertility and WID inequality via Our World in Data.
+
+Each year, countries are ranked on traits measured the year before and compared on real stock returns over the next 3 and 5 years. The **primary test, fixed in advance, is one composite**: the average z-score of debt (−), population growth (+), schooling (+), corruption (−), rule of law (+) and the defence rule (2-5% of GDP good, better if rising from below 2%, above 5% bad).
+
+| 5-year horizon | IC 1870-2015 (t) | 1870-1945 (t) | 1950-2015 (t) | Top minus bottom third, %/yr (t) |
+|---|---|---|---|---|
+| **Composite** | **0.16 (3.8)** | 0.17 (3.3) | 0.15 (2.2) | **3.5 (2.9)** |
+| Low government debt | 0.10 (2.7) | 0.11 (2.2) | 0.08 (1.5) | 2.0 (1.9) |
+| Population growth | 0.12 (4.6) | 0.17 (7.3) | 0.08 (1.7) | 1.7 (2.2) |
+| Schooling | 0.15 (3.7) | 0.12 (2.8) | 0.19 (2.6) | 2.1 (2.1) |
+| Low corruption | 0.12 (2.3) | 0.08 (1.3) | 0.18 (2.1) | 2.4 (2.1) |
+| Rule of law | 0.16 (3.1) | 0.13 (2.2) | 0.20 (2.4) | 2.7 (2.5) |
+| Defence rule | −0.06 (−1.7) | −0.05 (−0.8) | −0.07 (−2.0) | 0.2 (0.3) |
+| Fertility (from 1950) | 0.04 (0.6) | – | 0.04 (0.5) | −0.5 |
+| Low inequality (from ~1980) | 0.09 (1.2) | – | 0.09 (1.2) | 4.0 (3.3) |
+
+The composite beats all 1,000 country-shuffled placebos at both 3 and 5 years, and also predicts housing returns (IC 0.14, t 4.0). Robustness at 5 years:
+
+| Check | IC (t) | 1950-2015 (t) |
+|---|---|---|
+| Hard data only (no expert-coded V-Dem scores) | 0.17 (4.7) | 0.12 (2.1) |
+| After removing GDP per head (not just "rich countries") | 0.15 (4.1) | 0.11 (2.6) |
+| GDP per head alone | 0.10 (1.9) | 0.11 (1.3) |
+| Returns in US dollars | 0.14 (3.9) | 0.15 (2.5) |
+
+- **This is the first signal in this project that holds up across a century and a half, both halves of the sample, both currencies and a placebo.**
+- **The defence rule is the exception.** It points the wrong way, mildly. It stays in the composite because the composite was fixed in advance.
+- **Limits.** These are 16 developed countries that survived as markets: there is no Russia after 1917 and no China after 1949. Applying the result to China, India, Poland or Korea is an extrapolation. The edge is about 3.5% a year between the top and bottom third, before costs, with long stretches where it doesn't work.
+
+## Country model (`country_model.py`, `expert_views.py`)
+
+Final score = 70% data traits + 30% the investor's own views. The data traits are the six from the 150-year test, with defence at half weight. With that weighting the 150-year result is unchanged (IC 0.17, t 4.0; since 1950 t 2.4). The investor's views were recorded on 2026-10-27 in `expert_views.py` and are tracked forward, not backtested. Each run saves the scores to `strategy/tracking/<date>.csv`.
+
+There are two long/short books: developed and emerging markets (China, India, Korea, Poland; Russia is scored but cannot be traded). Countries are scored only against the others in their book, so governance gaps don't put every emerging market at the bottom. Each book goes long its top third and short its bottom third, reviewed every 6 months and held 3-5 years. The books are weighted 80/20, one weight per investable country.
+
+Positions on 2026-10-28:
+
+| Book | Long | Neutral | Short |
+|---|---|---|---|
+| Developed | Sweden, Norway, Denmark, Germany, Netherlands | Switzerland, Canada, Finland, Belgium, UK, Spain | USA, Austria, France, Japan, Italy |
+| Emerging | Poland | Korea, India | China |
+
+China is still the emerging short. Within its book it has the worst rule of law and corruption after Russia, and the investor's positive view only partly offsets that. Korea has the best data score, but the investor's −2 view keeps it out of the long. Scored only against rich countries, the US becomes a short.
+
+**Check on investable instruments (data part only).** US-listed iShares country ETFs in USD, 2001-2026:
+
+| Long/short, held 5 years, %/yr | 2001-2010 | 2011-2020 | 2021-2026 | Whole period |
+|---|---|---|---|---|
+| Developed book | +0.8 | +2.7 | −4.2 | +0.4 (t 0.2) |
+| Emerging book (from 2011) | – | +1.2 | +18.8 | +7.9 (t 1.0) |
+| Combined, 80/20 | +0.8 | +2.4 | +0.4 | +1.3 (t 0.8) |
+
+The emerging book's history is really one trade. With only 3-4 ETFs it was long Korea and short China at every review, and most of its return came from China's slump after 2021. The developed book has shown almost nothing on ETFs, and its top third trailed the MSCI ACWI by 1.6% a year since 2008, mainly because the US dominated.
+
+On the 150-year data the same traits earned +3-4% a year in 2001-2020, in local currency or in USD, and on the overlapping countries too. The ETF version is weaker mainly because of which countries are in it (Austria, Canada and Korea rather than Australia and Portugal) and its weak 2000s. The 150-year record has very few bad 20-year stretches (2% of windows negative), but the practical edge should be expected to be smaller than the historical +3.5% a year.
 
 ## Caveats
 

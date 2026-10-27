@@ -131,3 +131,47 @@ def load_world_bank(indicator, countries, source=None, refresh=False):
     out = df.pivot(index="date", columns="country", values="value").sort_index()
     out.to_csv(path)
     return out[countries]
+
+
+USER_AGENT = "etrace-research/1.0 (+https://github.com/AlexisKiehn/etrace)"
+JST_URL = "https://www.macrohistory.net/app/download/9834512469/JSTdatasetR6.dta"
+OWID_URL = "https://ourworldindata.org/grapher/{}.csv?v=1&csvType=full&useColumnShortNames=true"
+
+
+def load_jst():
+    """Jorda-Schularick-Taylor Macrohistory Database R6: 18 countries, 1870-2020, annual."""
+    path = CACHE / "JSTdatasetR6.dta"
+    if not path.exists():
+        CACHE.mkdir(exist_ok=True)
+        urllib.request.urlretrieve(JST_URL, path)
+    return pd.read_stata(path)
+
+
+def load_owid(slug, refresh=False):
+    """An Our World in Data chart as a year x ISO3 table (its first data column)."""
+    path = CACHE / f"owid_{slug}.csv"
+    if not path.exists() or refresh:
+        CACHE.mkdir(exist_ok=True)
+        req = urllib.request.Request(OWID_URL.format(slug), headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            path.write_bytes(resp.read())
+    df = pd.read_csv(path).dropna(subset=["code"])
+    return df.pivot_table(index="year", columns="code", values=df.columns[3])
+
+
+IMF_URL = "https://www.imf.org/external/datamapper/api/v1/{}"
+
+
+def load_imf(indicator="GGXWDG_NGDP", refresh=False):
+    """IMF World Economic Outlook series (default: government gross debt, % of GDP) as a
+    year x ISO3 table. Includes IMF forecasts, so callers must cut at the reporting year."""
+    path = CACHE / f"imf_{indicator}.json"
+    if not path.exists() or refresh:
+        CACHE.mkdir(exist_ok=True)
+        req = urllib.request.Request(IMF_URL.format(indicator), headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            path.write_bytes(resp.read())
+    values = json.loads(path.read_text())["values"][indicator]
+    out = pd.DataFrame({c: pd.Series(v, dtype=float) for c, v in values.items()})
+    out.index = out.index.astype(int)
+    return out.sort_index()
