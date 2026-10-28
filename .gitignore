@@ -220,3 +220,7 @@ __marimo__/
 
 # Mac
 .DS_Store
+
+# Strategy backtest artifacts
+strategy/cache/
+strategy/output/

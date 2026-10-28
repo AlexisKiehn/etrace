@@ -19,3 +19,5 @@ geojson
 fastapi
 uvicorn
 joblib
+yfinance
+xgboost
